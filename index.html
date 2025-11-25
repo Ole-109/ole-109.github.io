@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Japan Cities Map</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+
+<style>
+  #map { height: 100vh; }
+</style>
+</head>
+<body>
+<div id="map"></div>
+
+<script>
+  // 1. Initialize the map
+  var map = L.map('map', {
+    center: [36.0, 138.0],
+    zoom: 5,
+    minZoom: 6,
+    maxZoom: 11
+  });
+
+  // 2. Add OSM tile layer
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 18,
+    attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(map);
+
+  // 3. Limit map to Japan bounds
+  var japanBounds = [[20, 122], [46, 154]];
+  map.setMaxBounds(japanBounds);
+  map.on('drag', function() {
+    map.panInsideBounds(japanBounds, {animate:false});
+  });
+
+  // 4. Create a marker cluster group
+  var markers = L.markerClusterGroup();
+
+  // 5. Load GeoJSON overlay
+  fetch('cleaned-japan-cities-25k.geojson')
+    .then(response => response.json())
+    .then(data => {
+      L.geoJSON(data, {
+        pointToLayer: function(feature, latlng) {
+          return L.marker(latlng); // each city becomes a clickable marker
+        },
+        onEachFeature: function(feature, layer) {
+          var props = feature.properties;
+          var popupContent = "<div style='font-size:16px; line-height:1.4;'>"
+                           + "<b>" + (props.name || "") + "</b><br>"
+                           + "Hiragana: " + (props["name:ja-Hira"] || "") + "<br>"
+                           + "English: " + (props["name:en"] || "") + "<br>"
+                           + "Population: " + (props.population || "N/A") + " inhabitants"
+                           + "</div>";
+          layer.bindPopup(popupContent);
+        }
+      }).eachLayer(function(layer) {
+        markers.addLayer(layer); // add each city marker to the cluster group
+      });
+
+      map.addLayer(markers); // add cluster group to the map
+    })
+    .catch(error => console.error("Error loading GeoJSON:", error));
+</script>
+</body>
+</html>
