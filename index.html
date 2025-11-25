@@ -35,7 +35,7 @@
   }).addTo(map);
 
   // 3. Limit map to Japan bounds
-  var japanBounds = [[20, 122], [45, 177]];
+  var japanBounds = [[20, 122], [55, 177]];
   map.setMaxBounds(japanBounds);
   map.on('drag', function() {
     map.panInsideBounds(japanBounds, {animate:false});
