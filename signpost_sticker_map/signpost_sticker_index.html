@@ -27,12 +27,7 @@
 
     <div id="imageWrapper">
       <div id="imagePlaceholder">
-        <!-- spinner (shown while loading) -->
-        <div id="spinner" class="spinner" aria-hidden="true"></div>
-
-        <!-- warning icon (shown when no meta available) -->
-        <div id="warningIcon" style="display:none; font-size:28px; color:#d48806;" aria-hidden="true">⚠</div>
-
+        <div class="spinner" aria-hidden="true"></div>
         <div id="placeholderText">No image yet</div>
       </div>
       <img id="prefImage" src="" alt="Signpost sticker" />
@@ -61,13 +56,10 @@
 // -------------------------------
 // Map init
 // -------------------------------
-const map = L.map('map', { minZoom: 6, maxZoom: 7}).setView([36.2, 138.0], 5);
+const map = L.map('map', { minZoom: 6, maxZoom: 7 }).setView([36.2, 138.0], 5);
 L.tileLayer(
   "https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png",
-  {
-    subdomains: "abcd",
-    attribution: "&copy; OpenStreetMap &copy; CARTO"
-  }
+  { subdomains: "abcd", attribution: "&copy; OpenStreetMap &copy; CARTO" }
 ).addTo(map);
 
 function prefectureStyle(feature) { return { color: '#333', weight: 1, fillColor: '#88aaff', fillOpacity: 0.6 }; }
@@ -96,7 +88,6 @@ function sanitizeKey(nameEn) {
   return nameEn.trim().split(/\s+/)[0].toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
-// Probe a single URL -> Promise<boolean>
 function probeImage(url) {
   return new Promise(resolve => {
     const img = new Image();
@@ -106,11 +97,11 @@ function probeImage(url) {
   });
 }
 
-// Build candidate list and probe in parallel
 async function loadImagesForKey(key, maxImages = 12) {
   if (!key) return [];
   const exts = ['png','jpg','jpeg','webp'];
   const candidates = [];
+
   for (let i = 1; i <= maxImages; i++) {
     for (const ext of exts) {
       candidates.push({ url: `images/${key}/${i}.${ext}`, order: i * 10 + exts.indexOf(ext) });
@@ -121,13 +112,16 @@ async function loadImagesForKey(key, maxImages = 12) {
   }
 
   const probes = await Promise.allSettled(candidates.map(c => probeImage(c.url)));
+
   const successes = [];
   for (let i = 0; i < probes.length; i++) {
     if (probes[i].status === 'fulfilled' && probes[i].value === true) {
       successes.push({ url: candidates[i].url, order: candidates[i].order, idx: i });
     }
   }
+
   if (successes.length === 0) return [];
+
   successes.sort((a, b) => a.order - b.order || a.idx - b.idx);
 
   const out = [];
@@ -148,11 +142,13 @@ async function loadImagesForKey(key, maxImages = 12) {
 function updatePreviewStrip() {
   const preview = document.getElementById('imagePreview');
   const wrapper = document.getElementById('imagePreviewWrapper');
+
   preview.innerHTML = '';
   if (!currentGallery.urls || currentGallery.urls.length === 0) {
     preview.style.transform = 'translateX(0)';
     return;
   }
+
   const THUMB_WIDTH = 48;
   const GAP = 6;
   const SLOT = THUMB_WIDTH + GAP;
@@ -165,10 +161,7 @@ function updatePreviewStrip() {
     img.width = THUMB_WIDTH;
     img.height = THUMB_WIDTH;
     img.className = (i === currentGallery.idx) ? 'active' : '';
-    img.onclick = () => {
-      currentGallery.idx = i;
-      showGalleryState();
-    };
+    img.onclick = () => { currentGallery.idx = i; showGalleryState(); };
     preview.appendChild(img);
   });
 
@@ -179,7 +172,7 @@ function updatePreviewStrip() {
 }
 
 // -------------------------------
-// Show gallery state with main image
+// Show gallery state
 // -------------------------------
 let currentGallery = {urls: [], idx: 0};
 
@@ -187,18 +180,13 @@ function showGalleryState() {
   const imgEl = document.getElementById('prefImage');
   const placeholder = document.getElementById('imagePlaceholder');
   const placeholderText = document.getElementById('placeholderText');
-  const spinner = document.getElementById('spinner');
-  const warning = document.getElementById('warningIcon');
   const info = document.getElementById('galleryInfo');
   const wrapper = document.getElementById('imageWrapper');
   const padding = 20;
 
-  // if no urls -> show placeholder (but do not change region name)
-  if(!currentGallery.urls.length){
-    imgEl.style.display='none';
-    spinner.style.display = 'none';
-    warning.style.display = 'block'; // show warning by default for empty gallery
-    placeholder.style.display='flex';
+  if (!currentGallery.urls.length) {
+    imgEl.style.display = 'none';
+    placeholder.style.display = 'flex';
     placeholderText.textContent = 'No meta available';
     document.getElementById('imagePreview').innerHTML = '';
     document.getElementById('imagePreview').style.transform = 'translateX(0)';
@@ -206,16 +194,12 @@ function showGalleryState() {
     return;
   }
 
-  // images exist -> show loading spinner for the single image
-  spinner.style.display = 'block';
-  warning.style.display = 'none';
-  placeholder.style.display='flex';
+  placeholder.style.display = 'flex';
   placeholderText.textContent = 'Loading image...';
-  imgEl.style.display='none';
+  imgEl.style.display = 'none';
   imgEl.style.opacity = 0;
 
   const url = currentGallery.urls[currentGallery.idx];
-
   const temp = new Image();
   temp.decoding = 'async';
   temp.onload = () => {
@@ -235,8 +219,6 @@ function showGalleryState() {
     updatePreviewStrip();
   };
   temp.onerror = () => {
-    spinner.style.display = 'none';
-    warning.style.display = 'block';
     placeholder.style.display = 'flex';
     placeholderText.textContent = 'Failed to load image';
     imgEl.style.display = 'none';
@@ -247,18 +229,12 @@ function showGalleryState() {
 }
 
 // -------------------------------
-// Background preloader
+// Background preload
 // -------------------------------
 function backgroundPreload(urls, skipIndex=0) {
   const toPreload = urls.filter((u, i) => i !== skipIndex);
-  if (toPreload.length === 0) return;
-  const doPreload = () => {
-    toPreload.forEach(u => {
-      const img = new Image();
-      img.decoding = 'async';
-      img.src = u;
-    });
-  };
+  if (!toPreload.length) return;
+  const doPreload = () => toPreload.forEach(u => { const img = new Image(); img.decoding='async'; img.src=u; });
   if ('requestIdleCallback' in window) requestIdleCallback(doPreload, { timeout: 2000 });
   else setTimeout(doPreload, 500);
 }
@@ -281,73 +257,44 @@ document.getElementById('nextImage').onclick = ()=>{
 // Prefecture interaction
 // -------------------------------
 function onEachPrefecture(feature, layer) {
-  // Use closures to read layer.hasImages
   layer.on({
-    mouseover: (e) => {
-      // do not highlight greyed layers
-      if (layer.hasImages === false) return;
-      e.target.setStyle(highlightStyle());
-    },
-    mouseout: (e) => {
-      // do not reset greyed layers
-      if (layer.hasImages === false) return;
-      prefectureLayer.resetStyle(e.target);
-    },
-
+    mouseover: (e) => { if (layer.hasImages !== false) e.target.setStyle(highlightStyle()); },
+    mouseout: (e) => { if (layer.hasImages !== false) prefectureLayer.resetStyle(e.target); },
     click: async () => {
       const nameEn = feature.properties['name:en'] ?? 'Unknown';
       const nameJa = feature.properties['name:ja'] ?? '';
+      const key = sanitizeKey(nameEn);
 
-      // set region name (unchanged even when no meta)
       document.getElementById('prefNameEn').innerText = nameEn;
       document.getElementById('prefNameJa').innerText = nameJa;
 
-      const key = sanitizeKey(nameEn);
-
-      // OPEN SIDEBAR IMMEDIATELY
       openSidebar();
 
-      // Reset gallery + show placeholder state
       currentGallery = { urls: [], idx: 0 };
       const preview = document.getElementById('imagePreview');
       preview.innerHTML = '';
       preview.style.transform = 'translateX(0)';
       const placeholder = document.getElementById('imagePlaceholder');
       const placeholderText = document.getElementById('placeholderText');
-      const spinner = document.getElementById('spinner');
-      const warning = document.getElementById('warningIcon');
-
-      // show spinner while probing
-      spinner.style.display = 'block';
-      warning.style.display = 'none';
       placeholder.style.display = 'flex';
       placeholderText.textContent = 'Searching images...';
       document.getElementById('prefImage').style.display = 'none';
       document.getElementById('galleryInfo').textContent = '';
 
-      // Load images
       const urls = await loadImagesForKey(key, 12);
       currentGallery.urls = urls;
 
-      // NO IMAGES CASE: keep region name, swap spinner->warning + grey permanently
-      if (urls.length === 0) {
-        layer.hasImages = false; // mark for handlers
-        layer.setStyle({ fillColor: '#cccccc', fillOpacity: 0.8, color: '#666' });
-
-        // show warning in placeholder area (do NOT change region name)
-        spinner.style.display = 'none';
-        warning.style.display = 'block';
+      if (!urls.length) {
+        layer.hasImages = false;
+        layer.setStyle({ fillColor:'#cccccc', fillOpacity:0.8, color:'#666' });
         placeholderText.textContent = 'No meta available';
         document.getElementById('imagePreview').innerHTML = '';
         document.getElementById('galleryInfo').textContent = '';
         return;
       }
 
-      // IMAGES EXIST: restore normal color & behavior
       layer.hasImages = true;
       layer.setStyle(prefectureStyle(feature));
-
-      // Show first image and previews
       currentGallery.idx = 0;
       showGalleryState();
       updatePreviewStrip();
@@ -361,16 +308,17 @@ function onEachPrefecture(feature, layer) {
 // -------------------------------
 let prefectureLayer;
 fetch('prefectures_land_only_clean.geojson')
-  .then(res=>res.json())
-  .then(data=>{
-    prefectureLayer=L.geoJSON(data,{
+  .then(res => res.json())
+  .then(data => {
+    prefectureLayer = L.geoJSON(data, {
       style: prefectureStyle,
-      onEachFeature:onEachPrefecture,
-      interactive:true,
-      fill:true
+      onEachFeature: onEachPrefecture,
+      interactive: true,
+      fill: true
     }).addTo(map);
     map.fitBounds(prefectureLayer.getBounds());
-  }).catch(err=>console.error('GeoJSON load error:',err));
+  })
+  .catch(err => console.error('GeoJSON load error:', err));
 </script>
 </body>
 </html>
