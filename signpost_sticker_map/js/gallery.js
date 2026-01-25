@@ -1,50 +1,31 @@
 // js/gallery.js v1.0.5
-import { probeImageUrl } from './utils.js';
-import { showNoMeta, showSpinner } from './sidebar.js';
-
 export default class Gallery {
   constructor({
     previewEl,
     previewWrapperEl,
     imageEl,
     imageWrapperEl,
-    placeholderEl,
-    placeholderTextEl,
     infoEl,
-    prevBtn,
-    nextBtn,
   }) {
     this.previewEl = previewEl;
     this.previewWrapperEl = previewWrapperEl;
     this.imageEl = imageEl;
     this.imageWrapperEl = imageWrapperEl;
-    this.placeholderEl = placeholderEl;
-    this.placeholderTextEl = placeholderTextEl;
     this.infoEl = infoEl;
-    this.prevBtn = prevBtn;
-    this.nextBtn = nextBtn;
 
     this.urls = [];
     this.idx = 0;
-
-    this.prevBtn.addEventListener('click', () => this.showPrev());
-    this.nextBtn.addEventListener('click', () => this.showNext());
   }
 
   /**
-   * Reset the gallery UI
-   * @param {string} placeholderText Text to show while loading
+   * Reset the gallery UI (hide images & preview)
    */
-  reset(placeholderText = 'Loading...') {
+  reset() {
     this.urls = [];
     this.idx = 0;
     this.previewEl.innerHTML = '';
     this.previewEl.style.transform = 'translateX(0)';
     this.imageEl.style.display = 'none';
-
-    // Show spinner for blue prefectures
-    showSpinner(placeholderText);
-
     this.infoEl.textContent = '';
   }
 
@@ -55,10 +36,7 @@ export default class Gallery {
    * @returns {Promise<boolean>} true if at least one image loaded
    */
   async loadForKey(key, maxImages = 12) {
-    if (!key) {
-      showNoMeta();
-      return false;
-    }
+    if (!key) return false;
 
     const exts = ['png', 'jpg', 'jpeg', 'webp'];
     const candidates = [];
@@ -72,44 +50,39 @@ export default class Gallery {
       candidates.push(`images/${key}.${ext}`);
     }
 
-    // Probe all candidates concurrently
-    const probes = await Promise.all(
-      candidates.map(async url => {
-        const exists = await probeImageUrl(url);
-        return exists ? url : null;
-      })
-    );
-
     const urls = [];
     const seen = new Set();
-    for (const u of probes) {
-      if (u && !seen.has(u)) {
-        urls.push(u);
-        seen.add(u);
+
+    for (const url of candidates) {
+      try {
+        const exists = await this.probe(url);
+        if (exists && !seen.has(url)) {
+          urls.push(url);
+          seen.add(url);
+        }
+        if (urls.length >= maxImages) break;
+      } catch (err) {
+        console.warn('Error probing image', url, err);
       }
-      if (urls.length >= maxImages) break;
     }
 
-    if (!urls.length) {
-      showNoMeta();
-      return false;
-    }
+    if (!urls.length) return false;
 
     this.urls = urls;
     this.idx = 0;
     this.showCurrent();
-    this.preloadBackground();
+    this.preloadOthers();
     return true;
   }
 
+  /**
+   * Show the current image
+   */
   showCurrent() {
     const url = this.urls[this.idx];
     if (!url) return;
 
-    // Show spinner again while loading current image
-    showSpinner('Loading image...');
     this.imageEl.style.display = 'none';
-
     const temp = new Image();
     temp.decoding = 'async';
     temp.onload = () => {
@@ -120,12 +93,8 @@ export default class Gallery {
 
       this.imageEl.width = Math.round(temp.naturalWidth * ratio);
       this.imageEl.height = Math.round(temp.naturalHeight * ratio);
-
       this.imageEl.src = url;
       this.imageEl.style.transition = 'opacity 0.35s ease-in-out';
-
-      // Hide placeholder spinner
-      this.placeholderEl.style.display = 'none';
       this.imageEl.style.display = 'block';
       requestAnimationFrame(() => {
         this.imageEl.style.opacity = 1;
@@ -135,7 +104,7 @@ export default class Gallery {
       this.infoEl.textContent = `${this.idx + 1} / ${this.urls.length}`;
     };
     temp.onerror = () => {
-      showNoMeta('Failed to load image');
+      this.imageEl.style.display = 'none';
     };
     temp.src = url + '?_v=' + Date.now();
   }
@@ -179,19 +148,29 @@ export default class Gallery {
     this.previewEl.style.transform = `translateX(${offset}px)`;
   }
 
-  preloadBackground() {
+  preloadOthers() {
     const toPreload = this.urls.filter((_, i) => i !== this.idx);
-    if (!toPreload.length) return;
+    toPreload.forEach(u => {
+      const img = new Image();
+      img.decoding = 'async';
+      img.src = u;
+    });
+  }
 
-    const doPreload = () => {
-      toPreload.forEach(u => {
-        const img = new Image();
-        img.decoding = 'async';
-        img.src = u;
-      });
-    };
+  probe(url, timeout = 6000) {
+    return new Promise(resolve => {
+      let done = false;
+      const img = new Image();
+      const timer = setTimeout(() => {
+        if (!done) {
+          done = true;
+          resolve(false);
+        }
+      }, timeout);
 
-    if ('requestIdleCallback' in window) requestIdleCallback(doPreload, { timeout: 2000 });
-    else setTimeout(doPreload, 500);
+      img.onload = () => { if (!done) { done = true; clearTimeout(timer); resolve(true); } };
+      img.onerror = () => { if (!done) { done = true; clearTimeout(timer); resolve(false); } };
+      img.src = `${url}?_probe=${Date.now()}`;
+    });
   }
 }
