@@ -3,8 +3,12 @@
 <head>
   <meta charset="utf-8" />
   <title>Japan Prefecture Signpost Trainer</title>
+
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="stylesheet" href="signpost_sticker.css" />
+  <meta name="description" content="Interactive Japan prefecture signpost trainer with map and image gallery." />
+
+  <!-- App CSS -->
+  <link rel="stylesheet" href="css/signpost_sticker.css" />
 
   <!-- Leaflet CSS -->
   <link
@@ -14,341 +18,65 @@
     crossorigin=""
   />
 </head>
+
 <body>
 
-<div id="map"></div>
+  <!-- Map container -->
+  <div id="map" aria-label="Map of Japan prefectures"></div>
 
-<!-- Sidebar -->
-<div id="sidebar">
-  <button id="closeSidebar" title="Close">&times;</button>
-  <div id="sidebarContent">
-    <h2 id="prefNameEn"></h2>
-    <h3 id="prefNameJa"></h3>
+  <!-- Sidebar -->
+  <aside id="sidebar" aria-hidden="true">
+    <button
+      id="closeSidebar"
+      title="Close sidebar"
+      aria-label="Close sidebar"
+    >
+      &times;
+    </button>
 
-    <div id="imageWrapper">
-      <div id="imagePlaceholder">
-        <div class="spinner" aria-hidden="true"></div>
-        <div id="placeholderText">No image yet</div>
+    <div id="sidebarContent">
+      <h2 id="prefNameEn"></h2>
+      <h3 id="prefNameJa"></h3>
+
+      <!-- Image area -->
+      <div id="imageWrapper">
+        <div id="imagePlaceholder">
+          <div class="spinner" aria-hidden="true"></div>
+          <div id="placeholderText">No image yet</div>
+        </div>
+
+        <img
+          id="prefImage"
+          src=""
+          alt="Prefecture signpost"
+          draggable="false"
+        />
       </div>
-      <img id="prefImage" src="" alt="Signpost sticker" />
+
+      <!-- Preview strip -->
+      <div id="imagePreviewWrapper">
+        <div id="imagePreview"></div>
+      </div>
+
+      <!-- Gallery controls -->
+      <div id="galleryControls">
+        <button id="prevImage" aria-label="Previous image">◀ Prev</button>
+        <button id="nextImage" aria-label="Next image">Next ▶</button>
+      </div>
+
+      <div id="galleryInfo" aria-live="polite"></div>
     </div>
+  </aside>
 
-    <!-- Preview strip (non-interactive) -->
-    <div id="imagePreviewWrapper">
-      <div id="imagePreview"></div>
-    </div>
+  <!-- Leaflet JS -->
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
 
-    <div id="galleryControls">
-      <button id="prevImage" title="Previous">◀ Prev</button>
-      <button id="nextImage" title="Next">Next ▶</button>
-    </div>
-    <div id="galleryInfo"></div>
-  </div>
-</div>
+  <!-- App entry point -->
+  <script type="module" src="js/main.js"></script>
 
-<!-- Leaflet JS -->
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-  integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-  crossorigin="">
-</script>
-
-<script>
-// -------------------------------
-// Map init
-// -------------------------------
-const map = L.map('map', { minZoom: 6, maxZoom: 7 }).setView([36.2, 138.0], 5);
-L.tileLayer(
-  "https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png",
-  { subdomains: "abcd", attribution: "&copy; OpenStreetMap &copy; CARTO" }
-).addTo(map);
-
-function prefectureStyle(feature) { return { color: '#333', weight: 1, fillColor: '#88aaff', fillOpacity: 0.6 }; }
-function highlightStyle() { return { weight: 2, color: '#000', fillOpacity: 0.8 }; }
-
-// -------------------------------
-// Sidebar open/close
-// -------------------------------
-function openSidebar() {
-  const sidebar = document.getElementById('sidebar');
-  sidebar.classList.remove('closing');
-  sidebar.classList.add('open');
-}
-function closeSidebar() {
-  const sidebar = document.getElementById('sidebar');
-  sidebar.classList.remove('open');
-  sidebar.classList.add('closing');
-}
-document.getElementById('closeSidebar').onclick = closeSidebar;
-
-// -------------------------------
-// Image gallery logic
-// -------------------------------
-function sanitizeKey(nameEn) {
-  if (!nameEn) return '';
-  return nameEn.trim().split(/\s+/)[0].toLowerCase().replace(/[^a-z0-9]/g, '');
-}
-
-function probeImage(url) {
-  return new Promise(resolve => {
-    const img = new Image();
-    img.onload = () => resolve(true);
-    img.onerror = () => resolve(false);
-    img.src = url + '?_probe=' + Date.now();
-  });
-}
-
-async function loadImagesForKey(key, maxImages = 12) {
-  if (!key) return [];
-  const exts = ['png','jpg','jpeg','webp'];
-  const candidates = [];
-
-  for (let i = 1; i <= maxImages; i++) {
-    for (const ext of exts) {
-      candidates.push({ url: `images/${key}/${i}.${ext}`, order: i * 10 + exts.indexOf(ext) });
-    }
-  }
-  for (const ext of exts) {
-    candidates.push({ url: `images/${key}.${ext}`, order: 9999 + exts.indexOf(ext) });
-  }
-
-  const probes = await Promise.allSettled(candidates.map(c => probeImage(c.url)));
-
-  const successes = [];
-  for (let i = 0; i < probes.length; i++) {
-    if (probes[i].status === 'fulfilled' && probes[i].value === true) {
-      successes.push({ url: candidates[i].url, order: candidates[i].order, idx: i });
-    }
-  }
-
-  if (successes.length === 0) return [];
-
-  successes.sort((a, b) => a.order - b.order || a.idx - b.idx);
-
-  const out = [];
-  const seen = new Set();
-  for (const s of successes) {
-    if (!seen.has(s.url)) {
-      out.push(s.url);
-      seen.add(s.url);
-    }
-    if (out.length >= maxImages) break;
-  }
-  return out;
-}
-
-// -------------------------------
-// Preview strip update
-// -------------------------------
-function updatePreviewStrip() {
-  const preview = document.getElementById('imagePreview');
-  const wrapper = document.getElementById('imagePreviewWrapper');
-
-  preview.innerHTML = '';
-  if (!currentGallery.urls || currentGallery.urls.length === 0) {
-    preview.style.transform = 'translateX(0)';
-    return;
-  }
-
-  const THUMB_WIDTH = 48;
-  const GAP = 6;
-  const SLOT = THUMB_WIDTH + GAP;
-
-  currentGallery.urls.forEach((url, i) => {
-    const img = document.createElement('img');
-    img.src = url;
-    img.alt = `preview ${i+1}`;
-    img.loading = 'lazy';
-    img.width = THUMB_WIDTH;
-    img.height = THUMB_WIDTH;
-    img.className = (i === currentGallery.idx) ? 'active' : '';
-    img.onclick = () => { currentGallery.idx = i; showGalleryState(); };
-    preview.appendChild(img);
-  });
-
-  const wrapperWidth = wrapper.clientWidth;
-  const centerX = Math.round(wrapperWidth / 2 - THUMB_WIDTH / 2);
-  const offset = centerX - currentGallery.idx * SLOT;
-  preview.style.transform = `translateX(${offset}px)`;
-}
-
-// -------------------------------
-// Show gallery state
-// -------------------------------
-let currentGallery = {urls: [], idx: 0};
-
-function showGalleryState() {
-  const imgEl = document.getElementById('prefImage');
-  const placeholder = document.getElementById('imagePlaceholder');
-  const placeholderText = document.getElementById('placeholderText');
-  const info = document.getElementById('galleryInfo');
-  const wrapper = document.getElementById('imageWrapper');
-  const padding = 20;
-
-  if (!currentGallery.urls.length) {
-    imgEl.style.display = 'none';
-    placeholder.style.display = 'flex';
-    placeholderText.textContent = 'No meta available';
-    document.getElementById('imagePreview').innerHTML = '';
-    document.getElementById('imagePreview').style.transform = 'translateX(0)';
-    info.textContent = '';
-    return;
-  }
-
-  placeholder.style.display = 'flex';
-  placeholderText.textContent = 'Loading image...';
-  imgEl.style.display = 'none';
-  imgEl.style.opacity = 0;
-
-  const url = currentGallery.urls[currentGallery.idx];
-  const temp = new Image();
-  temp.decoding = 'async';
-  temp.onload = () => {
-    const wrapperWidth = wrapper.clientWidth - padding;
-    const wrapperHeight = wrapper.clientHeight - padding;
-    const ratio = Math.min(wrapperWidth / temp.naturalWidth, wrapperHeight / temp.naturalHeight);
-    imgEl.width = Math.round(temp.naturalWidth * ratio);
-    imgEl.height = Math.round(temp.naturalHeight * ratio);
-
-    imgEl.src = url;
-    imgEl.style.transition = 'opacity 0.35s ease-in-out';
-
-    placeholder.style.display = 'none';
-    imgEl.style.display = 'block';
-    requestAnimationFrame(() => { imgEl.style.opacity = 1; });
-
-    updatePreviewStrip();
-  };
-  temp.onerror = () => {
-    placeholder.style.display = 'flex';
-    placeholderText.textContent = 'Failed to load image';
-    imgEl.style.display = 'none';
-  };
-  temp.src = url + '?_v=' + Date.now();
-
-  info.textContent = `${currentGallery.idx+1} / ${currentGallery.urls.length}`;
-}
-
-// -------------------------------
-// Background preload
-// -------------------------------
-function backgroundPreload(urls, skipIndex=0) {
-  const toPreload = urls.filter((u, i) => i !== skipIndex);
-  if (!toPreload.length) return;
-  const doPreload = () => toPreload.forEach(u => { const img = new Image(); img.decoding='async'; img.src=u; });
-  if ('requestIdleCallback' in window) requestIdleCallback(doPreload, { timeout: 2000 });
-  else setTimeout(doPreload, 500);
-}
-
-// -------------------------------
-// Arrow handlers
-// -------------------------------
-document.getElementById('prevImage').onclick = ()=>{
-  if(!currentGallery.urls.length) return;
-  currentGallery.idx = (currentGallery.idx-1+currentGallery.urls.length)%currentGallery.urls.length;
-  showGalleryState();
-};
-document.getElementById('nextImage').onclick = ()=>{
-  if(!currentGallery.urls.length) return;
-  currentGallery.idx = (currentGallery.idx+1)%currentGallery.urls.length;
-  showGalleryState();
-};
-
-// -------------------------------
-// Prefecture interaction
-// -------------------------------
-function onEachPrefecture(feature, layer) {
-  const nameEn = feature.properties['name:en'] ?? 'Unknown';
-  const nameJa = feature.properties['name:ja'] ?? '';
-  const key = sanitizeKey(nameEn);
-
-  // default: unknown until checked
-  layer.hasImages = null;
-
-  layer.on({
-    mouseover: (e) => {
-      if (layer.hasImages === false) return;
-      e.target.setStyle(highlightStyle());
-    },
-    mouseout: (e) => {
-      if (layer.hasImages === false) return;
-      prefectureLayer.resetStyle(e.target);
-    },
-    click: async () => {
-      document.getElementById('prefNameEn').innerText = nameEn;
-      document.getElementById('prefNameJa').innerText = nameJa;
-
-      openSidebar();
-
-      currentGallery = { urls: [], idx: 0 };
-      document.getElementById('imagePreview').innerHTML = '';
-      document.getElementById('imagePreview').style.transform = 'translateX(0)';
-      const placeholderText = document.getElementById('placeholderText');
-      placeholderText.textContent = 'Searching images...';
-      document.getElementById('prefImage').style.display = 'none';
-      document.getElementById('galleryInfo').textContent = '';
-
-      const urls = await loadImagesForKey(key, 12);
-      currentGallery.urls = urls;
-
-      if (!urls.length) {
-        layer.hasImages = false;
-        layer.setStyle({ fillColor:'#cccccc', fillOpacity:0.8, color:'#666' });
-        placeholderText.textContent = 'No meta available';
-        return;
-      }
-
-      layer.hasImages = true;
-      layer.setStyle(prefectureStyle(feature));
-      currentGallery.idx = 0;
-      showGalleryState();
-      updatePreviewStrip();
-      backgroundPreload(urls, 0);
-    }
-  });
-}
-
-// -------------------------------
-// Load GeoJSON + INITIAL META CHECK
-// -------------------------------
-let prefectureLayer;
-
-fetch('prefectures_land_only_clean.geojson')
-  .then(res => res.json())
-  .then(async data => {
-
-    prefectureLayer = L.geoJSON(data, {
-      style: prefectureStyle,
-      onEachFeature: onEachPrefecture,
-      interactive: true,
-      fill: true
-    }).addTo(map);
-
-    map.fitBounds(prefectureLayer.getBounds());
-
-    // ---- INITIAL META SCAN (parallel, fast) ----
-    const checks = [];
-
-    prefectureLayer.eachLayer(layer => {
-      const nameEn = layer.feature.properties['name:en'] ?? '';
-      const key = sanitizeKey(nameEn);
-
-      const check = loadImagesForKey(key, 1).then(urls => {
-        if (!urls.length) {
-          layer.hasImages = false;
-          layer.setStyle({
-            fillColor: '#cccccc',
-            fillOpacity: 0.8,
-            color: '#666'
-          });
-        } else {
-          layer.hasImages = true;
-        }
-      });
-
-      checks.push(check);
-    });
-
-    await Promise.all(checks);
-  })
-  .catch(err => console.error('GeoJSON load error:', err));
-</script>
+</body>
+</html>
