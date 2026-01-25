@@ -1,5 +1,4 @@
-// js/sidebar.js
-// Version 1.0.1
+// js/sidebar.js v1.0.2
 
 /**
  * Open the sidebar
@@ -33,49 +32,43 @@ export function setPrefectureNames(nameEn, nameJa) {
 }
 
 /**
- * Show the ⚠ No meta available message in the image placeholder
+ * Show a ⚠ No meta available message in the image placeholder
  * @param {string} text Optional text override
  */
 export function showNoMeta(text = 'No meta available') {
   const placeholder = document.getElementById('imagePlaceholder');
   const placeholderText = document.getElementById('placeholderText');
   const prefImage = document.getElementById('prefImage');
-  const imagePreview = document.getElementById('imagePreview');
+  const previewEl = document.getElementById('imagePreview');
   const galleryInfo = document.getElementById('galleryInfo');
 
-  // Hide image and preview
+  // Hide image element and preview
   prefImage.style.display = 'none';
-  imagePreview.innerHTML = '';
+  previewEl.innerHTML = '';
   galleryInfo.textContent = '';
 
-  // Show placeholder with ⚠ emoji above text
+  // Display placeholder with ⚠ and text only
   placeholder.style.display = 'flex';
-  placeholderText.innerHTML = `
-    <span class="no-meta-emoji">⚠</span>
-    <span class="no-meta-text">${text}</span>
-  `;
+  placeholderText.innerHTML = `<span class="no-meta-emoji">⚠</span><span class="no-meta-text">${text}</span>`;
 }
 
 /**
- * Show a loading spinner centered in the placeholder
- * @param {string} text Optional text to show below spinner
+ * Show a single centered spinner while loading images
+ * @param {string} text Optional loading text
  */
-export function showLoading(text = 'Loading image...') {
+export function showLoading(text = 'Loading...') {
   const placeholder = document.getElementById('imagePlaceholder');
   const placeholderText = document.getElementById('placeholderText');
   const prefImage = document.getElementById('prefImage');
-  const imagePreview = document.getElementById('imagePreview');
+  const previewEl = document.getElementById('imagePreview');
   const galleryInfo = document.getElementById('galleryInfo');
 
-  // Hide image and preview
+  // Hide image element and preview
   prefImage.style.display = 'none';
-  imagePreview.innerHTML = '';
+  previewEl.innerHTML = '';
   galleryInfo.textContent = '';
 
-  // Show spinner and text
+  // Show placeholder with spinner and text
   placeholder.style.display = 'flex';
-  placeholderText.innerHTML = `
-    <div class="spinner"></div>
-    <span class="no-meta-text">${text}</span>
-  `;
+  placeholderText.innerHTML = `<div class="spinner"></div><span class="no-meta-text">${text}</span>`;
 }

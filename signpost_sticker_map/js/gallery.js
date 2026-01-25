@@ -1,6 +1,6 @@
-// js/gallery.js
+// js/gallery.js v1.0.2
 import { probeImageUrl } from './utils.js';
-import { showNoMeta } from './sidebar.js';
+import { showNoMeta, showLoading } from './sidebar.js';
 
 export default class Gallery {
   constructor({
@@ -31,17 +31,28 @@ export default class Gallery {
     this.nextBtn.addEventListener('click', () => this.showNext());
   }
 
+  /**
+   * Reset the gallery UI
+   * @param {string} placeholderText Text to show while loading
+   */
   reset(placeholderText = 'Loading...') {
     this.urls = [];
     this.idx = 0;
     this.previewEl.innerHTML = '';
     this.previewEl.style.transform = 'translateX(0)';
     this.imageEl.style.display = 'none';
-    this.placeholderEl.style.display = 'flex';
-    this.placeholderTextEl.innerHTML = `<div class="spinner"></div>${placeholderText}`;
     this.infoEl.textContent = '';
+
+    // Show spinner during loading
+    showLoading(placeholderText);
   }
 
+  /**
+   * Load images for a given key
+   * @param {string} key
+   * @param {number} maxImages
+   * @returns {Promise<boolean>} true if at least one image loaded
+   */
   async loadForKey(key, maxImages = 12) {
     if (!key) {
       showNoMeta();
@@ -60,6 +71,7 @@ export default class Gallery {
       candidates.push(`images/${key}.${ext}`);
     }
 
+    // Probe all candidates concurrently (limited to 12 successful images)
     const probes = await Promise.all(
       candidates.map(async url => {
         const exists = await probeImageUrl(url);
@@ -93,10 +105,8 @@ export default class Gallery {
     const url = this.urls[this.idx];
     if (!url) return;
 
-    this.placeholderEl.style.display = 'flex';
-    this.placeholderTextEl.innerHTML = `<div class="spinner"></div>Loading image...`;
-    this.imageEl.style.display = 'none';
-    this.imageEl.style.opacity = 0;
+    // Show spinner while current image is loading
+    showLoading('Loading image...');
 
     const temp = new Image();
     temp.decoding = 'async';
@@ -112,6 +122,7 @@ export default class Gallery {
       this.imageEl.src = url;
       this.imageEl.style.transition = 'opacity 0.35s ease-in-out';
 
+      // Hide placeholder and show image
       this.placeholderEl.style.display = 'none';
       this.imageEl.style.display = 'block';
       requestAnimationFrame(() => {
@@ -122,7 +133,7 @@ export default class Gallery {
       this.infoEl.textContent = `${this.idx + 1} / ${this.urls.length}`;
     };
     temp.onerror = () => {
-      showNoMeta('Failed to load image'); // ⚠ replaces spinner here
+      showNoMeta('Failed to load image');
     };
     temp.src = url + '?_v=' + Date.now();
   }
