@@ -1,6 +1,6 @@
 // js/main.js
-import { initMap, loadPrefectures } from './map.js';
-import { openSidebar, closeSidebar, setPrefectureNames } from './sidebar.js';
+import { initMap, loadPrefectures, prefectureStyle } from './map.js';
+import { openSidebar, closeSidebar, setPrefectureNames, showNoMeta } from './sidebar.js';
 import Gallery from './gallery.js';
 import { sanitizeKey, hasImageForKey } from './utils.js';
 
@@ -63,11 +63,18 @@ async function onPrefectureClick(feature, layer) {
   setPrefectureNames(nameEn, nameJa);
   openSidebar();
 
-  // Reset gallery UI
+  // Reset gallery UI to show loading
   gallery.reset('Searching images...');
 
   // Build image key
   const key = sanitizeKey(nameEn);
+
+  // If we already know this has no images, show no-meta immediately
+  if (layer.hasImages === false) {
+    // use the sidebar helper so layout is consistent
+    showNoMeta();
+    return;
+  }
 
   // Load images
   const hasImages = await gallery.loadForKey(key, 12);
@@ -88,11 +95,20 @@ async function onPrefectureClick(feature, layer) {
 
 // -------------------------------
 // Pre-scan all prefectures for images
+// (marks all layers grey immediately, then flips those that have images)
 // -------------------------------
 async function preScanAllPrefectures(prefLayer) {
+  // Build list of layers
   const layers = [];
   prefLayer.eachLayer(l => layers.push(l));
 
+  // 1) Immediately set all layers to "no-meta" state (so UI is correct without interaction)
+  layers.forEach(layer => {
+    layer.hasImages = false;
+    layer.setStyle({ fillColor: '#cccccc', fillOpacity: 0.8, color: '#666' });
+  });
+
+  // 2) Now scan to find actual folders and flip those with images to default style
   const CONCURRENCY = 6;
   let idx = 0;
 
@@ -104,32 +120,38 @@ async function preScanAllPrefectures(prefLayer) {
 
       try {
         const hasImages = await hasImageForKey(key, { maxNumbered: 1 });
-        if (!hasImages) {
-          layer.hasImages = false;
-          layer.setStyle({
-            fillColor: '#cccccc',
-            fillOpacity: 0.8,
-            color: '#666',
-          });
-        } else {
+        if (hasImages) {
           layer.hasImages = true;
+          // reset to default style defined by your map module
           if (prefLayer && typeof prefLayer.resetStyle === 'function') {
             prefLayer.resetStyle(layer);
+          } else {
+            // fallback to programmatic default
+            layer.setStyle(prefectureStyle(layer.feature));
           }
+        } else {
+          // keep as no-meta (already set above)
+          layer.hasImages = false;
+          layer.setStyle({ fillColor: '#cccccc', fillOpacity: 0.8, color: '#666' });
         }
       } catch (err) {
         console.error('Error probing images for', key, err);
         layer.hasImages = false;
-        layer.setStyle({
-          fillColor: '#cccccc',
-          fillOpacity: 0.8,
-          color: '#666',
-        });
+        layer.setStyle({ fillColor: '#cccccc', fillOpacity: 0.8, color: '#666' });
       }
     }
   }
 
-  await Promise.all(new Array(CONCURRENCY).fill().map(() => worker()));
+  // Defer scanning slightly to avoid blocking rendering; requestIdleCallback if available
+  const runWorkers = () =>
+    Promise.all(new Array(CONCURRENCY).fill().map(() => worker()));
+
+  if ('requestIdleCallback' in window) {
+    requestIdleCallback(() => { runWorkers().catch(e => console.error(e)); }, { timeout: 2000 });
+  } else {
+    // small timeout so map can finish initial rendering
+    setTimeout(() => { runWorkers().catch(e => console.error(e)); }, 80);
+  }
 }
 
 // -------------------------------
@@ -140,7 +162,8 @@ loadPrefectures(map, {
   onClick: onPrefectureClick,
 }).then(prefLayer => {
   if (prefLayer) {
-    // Run background pre-scan
-    preScanAllPrefectures(prefLayer).catch(err => console.error('preScan error', err));
+    // Run background pre-scan to mark grey/blue correctly
+    // This call now first sets all layers to grey synchronously, then re-probes them.
+    preScanAllPrefectures(prefLayer);
   }
 });

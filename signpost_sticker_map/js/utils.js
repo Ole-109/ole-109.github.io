@@ -14,6 +14,12 @@ export function sanitizeKey(nameEn) {
 }
 
 /**
+ * Simple in-memory cache for image-key existence checks.
+ * Key -> boolean
+ */
+const imageKeyCache = new Map();
+
+/**
  * Probe whether an image URL exists by trying to load it.
  * Resolves true if it loads, false otherwise.
  * Uses a cache-busting query to avoid stale results.
@@ -56,6 +62,7 @@ export function probeImageUrl(url, timeout = 6000) {
  * 2. Try flat images: images/{key}.ext
  *
  * Stops on the first successful hit to minimize requests.
+ * Uses an in-memory cache to avoid re-probing the same key.
  */
 export async function hasImageForKey(
   key,
@@ -66,11 +73,17 @@ export async function hasImageForKey(
 ) {
   if (!key) return false;
 
+  // return cached result if available
+  if (imageKeyCache.has(key)) {
+    return imageKeyCache.get(key);
+  }
+
   // 1) Probe folder-based images: images/{key}/1.ext
   for (let i = 1; i <= maxNumbered; i++) {
     for (const ext of exts) {
       const url = `images/${key}/${i}.${ext}`;
       if (await probeImageUrl(url)) {
+        imageKeyCache.set(key, true);
         return true;
       }
     }
@@ -80,9 +93,18 @@ export async function hasImageForKey(
   for (const ext of exts) {
     const url = `images/${key}.${ext}`;
     if (await probeImageUrl(url)) {
+      imageKeyCache.set(key, true);
       return true;
     }
   }
 
+  imageKeyCache.set(key, false);
   return false;
+}
+
+/**
+ * Optional: clear cache (not used by default, but handy for dev)
+ */
+export function clearImageKeyCache() {
+  imageKeyCache.clear();
 }
