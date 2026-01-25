@@ -303,47 +303,57 @@ function onEachPrefecture(feature, layer) {
     mouseout: (e) => prefectureLayer.resetStyle(e.target),
 
     click: async () => {
-      const nameEn = feature.properties['name:en'] ?? 'Unknown';
-      const nameJa = feature.properties['name:ja'] ?? '';
-      const key = sanitizeKey(nameEn);
+        const nameEn = feature.properties['name:en'] ?? 'Unknown';
+        const nameJa = feature.properties['name:ja'] ?? '';
+        const key = sanitizeKey(nameEn);
 
-      document.getElementById('prefNameEn').innerText = nameEn;
-      document.getElementById('prefNameJa').innerText = nameJa;
+        // OPEN SIDEBAR IMMEDIATELY
+        openSidebar();
 
-      // OPEN SIDEBAR IMMEDIATELY
-      openSidebar();
+        // Reset gallery + show placeholder
+        currentGallery = { urls: [], idx: 0 };
+        const preview = document.getElementById('imagePreview');
+        preview.innerHTML = '';
+        preview.style.transform = 'translateX(0)';
+        const placeholder = document.getElementById('imagePlaceholder');
+        const placeholderText = document.getElementById('placeholderText');
+        placeholder.style.display = 'flex';
+        placeholderText.textContent = 'Searching images...';
+        document.getElementById('prefImage').style.display = 'none';
+        document.getElementById('galleryInfo').textContent = '';
 
-      // Reset gallery + show placeholder immediately
-      currentGallery = { urls: [], idx: 0 };
-      const preview = document.getElementById('imagePreview');
-      preview.innerHTML = '';
-      preview.style.transform = 'translateX(0)';
+        // Load images
+        const urls = await loadImagesForKey(key, 12);
+        currentGallery.urls = urls;
 
-      // show immediate placeholder text while probing
-      document.getElementById('placeholderText').textContent = 'Searching images...';
-      document.getElementById('imagePlaceholder').style.display = 'flex';
-      document.getElementById('prefImage').style.display = 'none';
-      document.getElementById('galleryInfo').textContent = '';
+        // If no images found
+        if (urls.length === 0) {
+          // Grey out region
+          layer.setStyle({ fillColor: '#cccccc', fillOpacity: 0.6 });
 
-      // Load image URLs (parallel probing)
-      const urls = await loadImagesForKey(key, 12);
-      currentGallery.urls = urls;
+          // Update sidebar text
+          document.getElementById('prefNameEn').innerText = 'No meta available';
+          document.getElementById('prefNameJa').innerText = '';
+          placeholderText.textContent = 'No images found';
+          document.getElementById('imagePreview').innerHTML = '';
+          document.getElementById('galleryInfo').textContent = '';
+          return;
+        }
 
-      // Build preview strip immediately (thumbnails will lazy-load)
-      updatePreviewStrip();
+        // Region has images: restore normal color
+        layer.setStyle(prefectureStyle(feature));
 
-      if (urls.length === 0) {
-        showGalleryState(); // will show "No images found" message
-        return;
+        // Show first image
+        currentGallery.idx = 0;
+        showGalleryState();
+
+        // Build preview strip (thumbnails lazy-load)
+        updatePreviewStrip();
+
+        // Preload remaining images in background
+        backgroundPreload(urls, 0);
       }
 
-      // Show first image as soon as it is loaded (others will preload in background)
-      currentGallery.idx = 0;
-      showGalleryState();
-
-      // Preload the rest in background (idle)
-      backgroundPreload(urls, 0);
-    }
   });
 }
 
