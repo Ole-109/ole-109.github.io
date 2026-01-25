@@ -1,6 +1,6 @@
-// js/gallery.js
+// js/gallery.js v1.0.5
 import { probeImageUrl } from './utils.js';
-import { showNoMeta, showLoading } from './sidebar.js';
+import { showNoMeta, showSpinner } from './sidebar.js';
 
 export default class Gallery {
   constructor({
@@ -42,8 +42,10 @@ export default class Gallery {
     this.previewEl.style.transform = 'translateX(0)';
     this.imageEl.style.display = 'none';
 
-    // Show proper loading spinner
-    showLoading(placeholderText);
+    // Show spinner for blue prefectures
+    showSpinner(placeholderText);
+
+    this.infoEl.textContent = '';
   }
 
   /**
@@ -70,7 +72,7 @@ export default class Gallery {
       candidates.push(`images/${key}.${ext}`);
     }
 
-    // Probe all candidates concurrently (limited to 12 successful images)
+    // Probe all candidates concurrently
     const probes = await Promise.all(
       candidates.map(async url => {
         const exists = await probeImageUrl(url);
@@ -104,8 +106,9 @@ export default class Gallery {
     const url = this.urls[this.idx];
     if (!url) return;
 
-    // Show spinner centered while loading
-    showLoading('Loading image...');
+    // Show spinner again while loading current image
+    showSpinner('Loading image...');
+    this.imageEl.style.display = 'none';
 
     const temp = new Image();
     temp.decoding = 'async';
@@ -121,7 +124,8 @@ export default class Gallery {
       this.imageEl.src = url;
       this.imageEl.style.transition = 'opacity 0.35s ease-in-out';
 
-      this.placeholderEl.style.display = 'none'; // hide spinner after loaded
+      // Hide placeholder spinner
+      this.placeholderEl.style.display = 'none';
       this.imageEl.style.display = 'block';
       requestAnimationFrame(() => {
         this.imageEl.style.opacity = 1;

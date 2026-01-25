@@ -1,4 +1,4 @@
-// js/sidebar.js v1.0.3
+// js/sidebar.js v1.0.4
 
 /**
  * Open the sidebar
@@ -24,11 +24,8 @@ export function closeSidebar() {
  * @param {string} nameJa Japanese name
  */
 export function setPrefectureNames(nameEn, nameJa) {
-  const elEn = document.getElementById('prefNameEn');
-  const elJa = document.getElementById('prefNameJa');
-
-  elEn.innerText = nameEn;
-  elJa.innerText = nameJa;
+  document.getElementById('prefNameEn').innerText = nameEn;
+  document.getElementById('prefNameJa').innerText = nameJa;
 }
 
 /**
@@ -38,16 +35,16 @@ export function setPrefectureNames(nameEn, nameJa) {
  */
 export function showNoMeta(text = 'No meta available') {
   const placeholder = document.getElementById('imagePlaceholder');
-  const placeholderText = document.getElementById('placeholderText');
 
-  // Clear spinner if present
+  // Clear previous content
   placeholder.innerHTML = '';
 
-  // Add ⚠ emoji and text
+  // Add ⚠ emoji
   const emoji = document.createElement('div');
   emoji.className = 'no-meta-emoji';
   emoji.textContent = '⚠';
 
+  // Add text below emoji
   const txt = document.createElement('div');
   txt.className = 'no-meta-text';
   txt.textContent = text;
@@ -55,8 +52,10 @@ export function showNoMeta(text = 'No meta available') {
   placeholder.appendChild(emoji);
   placeholder.appendChild(txt);
 
+  // Display
   placeholder.style.display = 'flex';
-  placeholderText.style.display = 'none'; // hide old placeholder text
+
+  // Hide image & preview
   document.getElementById('prefImage').style.display = 'none';
   document.getElementById('imagePreview').innerHTML = '';
   document.getElementById('galleryInfo').textContent = '';
@@ -69,7 +68,6 @@ export function showNoMeta(text = 'No meta available') {
  */
 export function showSpinner(text = 'Loading image...') {
   const placeholder = document.getElementById('imagePlaceholder');
-  const placeholderText = document.getElementById('placeholderText');
 
   // Clear previous content
   placeholder.innerHTML = '';
@@ -81,12 +79,14 @@ export function showSpinner(text = 'Loading image...') {
 
   // Add text below spinner
   const txt = document.createElement('div');
-  txt.id = 'placeholderText';
+  txt.className = 'placeholder-text';
   txt.textContent = text;
   placeholder.appendChild(txt);
 
+  // Display
   placeholder.style.display = 'flex';
-  placeholderText.style.display = 'block';
+
+  // Ensure image and preview are hidden
   document.getElementById('prefImage').style.display = 'none';
   document.getElementById('imagePreview').innerHTML = '';
   document.getElementById('galleryInfo').textContent = '';
