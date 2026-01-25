@@ -103,6 +103,43 @@ function probeImage(url) {
   });
 }
 
+// --- NEW: quick check for presence of any likely image for a key ---
+// Probes a small set of candidates and resolves true on first success.
+async function hasImagesForKey(key) {
+  if (!key) return false;
+  const candidates = [
+    `images/${key}/1.png`,
+    `images/${key}/1.jpg`,
+    `images/${key}/1.jpeg`,
+    `images/${key}/1.webp`,
+    `images/${key}.png`,
+    `images/${key}.jpg`,
+    `images/${key}.jpeg`,
+    `images/${key}.webp`
+  ];
+
+  return new Promise(resolve => {
+    let remaining = candidates.length;
+    let resolved = false;
+
+    candidates.forEach(url => {
+      const img = new Image();
+      img.onload = () => {
+        if (!resolved) {
+          resolved = true;
+          resolve(true);
+        }
+      };
+      img.onerror = () => {
+        remaining--;
+        if (!resolved && remaining === 0) resolve(false);
+      };
+      // small cache-bust
+      img.src = url + '?_probe=' + Date.now();
+    });
+  });
+}
+
 // Build a candidate list and probe in parallel, return ordered unique URLs up to maxImages
 async function loadImagesForKey(key, maxImages = 12) {
   if (!key) return [];
@@ -322,18 +359,10 @@ function onEachPrefecture(feature, layer) {
         document.getElementById('prefImage').style.display = 'none';
         document.getElementById('galleryInfo').textContent = '';
 
-        // Load images
-        const urls = await loadImagesForKey(key, 12);
-        currentGallery.urls = urls;
-
-        // If no images found
-        if (urls.length === 0) {
-          // Grey out region
+        // If initial scan already marked this layer, short-circuit:
+        if (typeof layer.hasImages !== 'undefined' && layer.hasImages === false) {
           layer.setStyle({ fillColor: '#cccccc', fillOpacity: 0.6 });
-
-          // Update sidebar text
           document.getElementById('prefNameEn').innerText = 'No meta available';
-          print('no meta available');
           document.getElementById('prefNameJa').innerText = '';
           placeholderText.textContent = 'No images found';
           document.getElementById('imagePreview').innerHTML = '';
@@ -341,7 +370,27 @@ function onEachPrefecture(feature, layer) {
           return;
         }
 
-        // Region has images: restore normal color
+        // Load images
+        const urls = await loadImagesForKey(key, 12);
+        currentGallery.urls = urls;
+
+        // If no images found
+        if (urls.length === 0) {
+          // Mark and grey out region
+          layer.hasImages = false;
+          layer.setStyle({ fillColor: '#cccccc', fillOpacity: 0.6 });
+
+          // Update sidebar text
+          document.getElementById('prefNameEn').innerText = 'No meta available';
+          document.getElementById('prefNameJa').innerText = '';
+          placeholderText.textContent = 'No images found';
+          document.getElementById('imagePreview').innerHTML = '';
+          document.getElementById('galleryInfo').textContent = '';
+          return;
+        }
+
+        // Region has images: restore normal color & show images
+        layer.hasImages = true;
         layer.setStyle(prefectureStyle(feature));
 
         // Show first image
@@ -360,7 +409,7 @@ function onEachPrefecture(feature, layer) {
 
 
 // -------------------------------
-// Load GeoJSON
+// Load GeoJSON + initial scan
 // -------------------------------
 let prefectureLayer;
 fetch('prefectures_land_only_clean.geojson')
@@ -373,6 +422,41 @@ fetch('prefectures_land_only_clean.geojson')
       fill:true
     }).addTo(map);
     map.fitBounds(prefectureLayer.getBounds());
+
+    // --- INITIAL BATCHED SCAN: detect which prefectures have images and grey the rest ---
+    (async function initialScan() {
+      const layers = [];
+      prefectureLayer.eachLayer(l => {
+        const nameEn = l.feature.properties['name:en'] ?? '';
+        const key = sanitizeKey(nameEn);
+        layers.push({ layer: l, key, nameEn });
+      });
+
+      const batchSize = 6; // tune this (reduce if server load is a concern)
+      for (let i = 0; i < layers.length; i += batchSize) {
+        const slice = layers.slice(i, i + batchSize);
+        await Promise.all(slice.map(async item => {
+          try {
+            const ok = await hasImagesForKey(item.key);
+            item.layer.hasImages = ok;
+            if (!ok) {
+              // grey out immediately
+              item.layer.setStyle({ fillColor: '#cccccc', fillOpacity: 0.6 });
+            } else {
+              // ensure normal style for those with images
+              item.layer.setStyle(prefectureStyle(item.layer.feature));
+            }
+            console.log('initialScan', item.key, ok);
+          } catch (e) {
+            console.error('initialScan error for', item.key, e);
+            item.layer.hasImages = false;
+            item.layer.setStyle({ fillColor: '#cccccc', fillOpacity: 0.6 });
+          }
+        }));
+      }
+      console.log('Initial image availability scan done.');
+    })();
+
   }).catch(err=>console.error('GeoJSON load error:',err));
 </script>
 </body>
