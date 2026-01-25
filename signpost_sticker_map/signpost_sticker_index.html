@@ -242,25 +242,37 @@ function onEachPrefecture(feature, layer) {
       document.getElementById('prefNameEn').innerText = nameEn;
       document.getElementById('prefNameJa').innerText = nameJa;
 
-      // 1️⃣ OPEN SIDEBAR IMMEDIATELY (Solve 1)
+      // OPEN SIDEBAR IMMEDIATELY
       openSidebar();
 
-      // 2️⃣ Reset gallery + show placeholder instantly
+      // Reset gallery + show placeholder immediately
       currentGallery = { urls: [], idx: 0 };
       const preview = document.getElementById('imagePreview');
       preview.innerHTML = '';
       preview.style.transform = 'translateX(0)';
-      showGalleryState();
+      showGalleryState(); // placeholder visible
 
-      // 3️⃣ Load images asynchronously (UI already open)
+      // Load image URLs first
       const urls = await loadImagesForKey(key, 12);
-
       currentGallery.urls = urls;
+
+      // Preload all images in parallel for speed
+      await Promise.all(
+        urls.map((url) => new Promise((resolve) => {
+          const img = new Image();
+          img.src = url;
+          img.onload = resolve;
+          img.onerror = resolve; // skip errors
+        }))
+      );
+
+      // Show first image immediately (all others preloaded)
       currentGallery.idx = 0;
       showGalleryState();
     }
   });
 }
+
 
 
 // -------------------------------
