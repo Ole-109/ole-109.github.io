@@ -1,6 +1,6 @@
-// js/main.js v1.0.3
+// js/main.js v1.0.4
 import { initMap, loadPrefectures, prefectureStyle } from './map.js';
-import { openSidebar, closeSidebar, setPrefectureNames, showNoMeta } from './sidebar.js';
+import { openSidebar, closeSidebar, setPrefectureNames, showNoMeta, showLoading } from './sidebar.js';
 import Gallery from './gallery.js';
 import { sanitizeKey, hasImageForKey } from './utils.js';
 
@@ -58,29 +58,24 @@ async function onPrefectureClick(feature, layer) {
   setPrefectureNames(nameEn, nameJa);
   openSidebar();
 
-  // Reset gallery UI to show spinner
-  gallery.reset('Loading image...');
-
-  // Build image key
   const key = sanitizeKey(nameEn);
 
-  // If we already know this has no images, show no-meta immediately
+  // If gray prefecture, show ⚠ only
   if (layer.hasImages === false) {
     showNoMeta();
     return;
   }
 
-  // Load images
+  // Blue prefecture: show spinner while loading
+  showLoading('Loading image...');
+
   const hasImages = await gallery.loadForKey(key, 12);
 
-  // Update map styling based on result
   if (!hasImages) {
+    // If loading failed, mark gray and show ⚠
     layer.hasImages = false;
-    layer.setStyle({
-      fillColor: '#cccccc',
-      fillOpacity: 0.8,
-      color: '#666',
-    });
+    layer.setStyle({ fillColor: '#cccccc', fillOpacity: 0.8, color: '#666' });
+    showNoMeta();
     return;
   }
 
@@ -89,13 +84,12 @@ async function onPrefectureClick(feature, layer) {
 
 // -------------------------------
 // Pre-scan all prefectures for images
-// (marks all layers grey immediately, then flips those that have images)
 // -------------------------------
 async function preScanAllPrefectures(prefLayer) {
   const layers = [];
   prefLayer.eachLayer(l => layers.push(l));
 
-  // 1) Immediately set all layers to "no-meta" (grey) without spinner
+  // 1) Immediately set all layers to "no-meta" (gray)
   layers.forEach(layer => {
     layer.hasImages = false;
     layer.setStyle({ fillColor: '#cccccc', fillOpacity: 0.8, color: '#666' });
@@ -120,10 +114,6 @@ async function preScanAllPrefectures(prefLayer) {
           } else {
             layer.setStyle(prefectureStyle(layer.feature));
           }
-        } else {
-          // keep grey, no spinner
-          layer.hasImages = false;
-          layer.setStyle({ fillColor: '#cccccc', fillOpacity: 0.8, color: '#666' });
         }
       } catch (err) {
         console.error('Error probing images for', key, err);
@@ -150,7 +140,6 @@ loadPrefectures(map, {
   onClick: onPrefectureClick,
 }).then(prefLayer => {
   if (prefLayer) {
-    // Run pre-scan to mark grey/blue correctly
     preScanAllPrefectures(prefLayer);
   }
 });
