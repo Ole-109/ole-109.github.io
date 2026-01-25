@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Japan Map Projects</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial;
+      background: #0f1115;
+      color: #eaeaea;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    #home {
+      max-width: 1000px;
+      width: 90%;
+      text-align: center;
+    }
+
+    h1 {
+      font-size: 32px;
+      margin-bottom: 40px;
+    }
+
+    .projects {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+    }
+
+    .card {
+      background: #1a1d24;
+      border-radius: 14px;
+      padding: 24px;
+      transition: transform 0.25s ease, box-shadow 0.25s ease;
+      cursor: pointer;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.35);
+      text-decoration: none;
+      color: inherit;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      height: 180px;
+    }
+
+    .card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 10px 28px rgba(0,0,0,0.45);
+    }
+
+    .card h2 {
+      margin: 0 0 8px 0;
+      font-size: 20px;
+    }
+
+    .card p {
+      margin: 0;
+      font-size: 14px;
+      color: #b8bcc8;
+      line-height: 1.4;
+      flex-grow: 1;
+    }
+  </style>
+</head>
+<body>
+
+<div id="home">
+  <h1>Japan Map Projects</h1>
+  <div class="projects">
+    <a class="card" href="population25k_map/jp_cities_25k_index.html">
+      <h2>🇯🇵 Cities ≥ 25k Population</h2>
+      <p>Explore Japanese cities with a population over 25,000 on an interactive map.</p>
+    </a>
+
+    <a class="card" href="signpost_sticker_map/signpost_sticker_index.html">
+      <h2>🪧 Prefecture Signpost Trainer</h2>
+      <p>Learn Japanese prefectures using real signpost stickers and visual memory.</p>
+    </a>
+  </div>
+</div>
+
+</body>
+</html>

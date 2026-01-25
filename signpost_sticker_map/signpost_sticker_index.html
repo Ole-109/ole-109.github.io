@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Japan Prefecture Signpost Trainer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="signpost_sticker.css" />
+
+  <!-- Leaflet CSS -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+</head>
+<body>
+
+<div id="map"></div>
+
+<!-- Sidebar -->
+<div id="sidebar">
+  <button id="closeSidebar" title="Close">&times;</button>
+  <div id="sidebarContent">
+    <h2 id="prefNameEn"></h2>
+    <h3 id="prefNameJa"></h3>
+
+    <div id="imageWrapper">
+      <div id="imagePlaceholder">No image yet</div>
+      <img id="prefImage" src="" alt="Signpost sticker" />
+    </div>
+
+    <!-- Preview strip (non-interactive) -->
+    <div id="imagePreviewWrapper">
+      <div id="imagePreview"></div>
+    </div>
+
+    <div id="galleryControls">
+      <button id="prevImage" title="Previous">◀ Prev</button>
+      <button id="nextImage" title="Next">Next ▶</button>
+    </div>
+    <div id="galleryInfo"></div>
+  </div>
+</div>
+
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+  integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+  crossorigin="">
+</script>
+
+<script>
+// -------------------------------
+// Map init
+// -------------------------------
+const map = L.map('map', { minZoom: 6, maxZoom: 7}).setView([36.2, 138.0], 5);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap contributors' }).addTo(map);
+
+function prefectureStyle(feature) { return { color: '#333', weight: 1, fillColor: '#88aaff', fillOpacity: 0.6 }; }
+function highlightStyle() { return { weight: 2, color: '#000', fillOpacity: 0.8 }; }
+
+// -------------------------------
+// Sidebar open/close
+// -------------------------------
+function openSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  sidebar.classList.remove('closing');
+  sidebar.classList.add('open');
+}
+function closeSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  sidebar.classList.remove('open');
+  sidebar.classList.add('closing');
+}
+document.getElementById('closeSidebar').onclick = closeSidebar;
+
+// -------------------------------
+// Image gallery logic
+// -------------------------------
+function sanitizeKey(nameEn) {
+  if (!nameEn) return '';
+  return nameEn.trim().split(/\s+/)[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function probeImage(url) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => resolve(true);
+    img.onerror = () => resolve(false);
+    img.src = url + '?_t=' + Date.now();
+  });
+}
+
+async function loadImagesForKey(key, maxImages = 12) {
+  const found = [];
+  if (!key) return found;
+  const exts = ['png','jpg','jpeg','webp'];
+  for (let i=1;i<=maxImages;i++){
+    for(const ext of exts){
+      const url = `images/${key}/${i}.${ext}`;
+      if(await probeImage(url)){
+        found.push(url);
+        break;
+      }
+    }
+  }
+  if(found.length===0){
+    for(const ext of exts){
+      const url=`images/${key}.${ext}`;
+      if(await probeImage(url)){
+        found.push(url);
+        break;
+      }
+    }
+  }
+  return found;
+}
+
+// -------------------------------
+// Preview strip update (deterministic slot layout)
+// NOTE: THUMB_WIDTH and GAP must match values in your CSS
+// -------------------------------
+function updatePreviewStrip() {
+  const preview = document.getElementById('imagePreview');
+  const wrapper = document.getElementById('imagePreviewWrapper');
+
+  preview.innerHTML = '';
+  if (!currentGallery.urls || currentGallery.urls.length === 0) {
+    preview.style.transform = 'translateX(0)';
+    return;
+  }
+
+  const THUMB_WIDTH = 48;   // must match CSS width for thumbnails
+  const GAP = 6;            // spacing between thumbs (matches CSS)
+  const SLOT = THUMB_WIDTH + GAP;
+
+  // Build thumbnails
+  currentGallery.urls.forEach((url, i) => {
+    const img = document.createElement('img');
+    img.src = url;
+    img.alt = `preview ${i+1}`;
+    if (i === currentGallery.idx) img.classList.add('active');
+    preview.appendChild(img);
+  });
+
+  // Compute transform so that thumbnail at index `currentGallery.idx` is centered.
+  // centerX is the transform x where index 0 would be positioned so index idx ends up centered.
+  const wrapperWidth = wrapper.clientWidth;
+  const centerX = Math.round(wrapperWidth / 2 - THUMB_WIDTH / 2);
+
+  // offset to apply to preview: position index 0 at `centerX`, then shift left by idx*SLOT
+  const offset = centerX - currentGallery.idx * SLOT;
+
+  preview.style.transform = `translateX(${offset}px)`;
+}
+
+// -------------------------------
+// Show gallery state with main image
+// -------------------------------
+let currentGallery = {urls: [], idx: 0};
+
+function showGalleryState() {
+  const imgEl = document.getElementById('prefImage');
+  const placeholder = document.getElementById('imagePlaceholder');
+  const info = document.getElementById('galleryInfo');
+  const wrapper = document.getElementById('imageWrapper');
+  const padding = 20; // total padding in px
+
+  if(!currentGallery.urls.length){
+    imgEl.style.display='none';
+    placeholder.style.display='flex';
+    info.textContent='No images found. Add images to images/<prefkey>/ or images/<prefkey>.png';
+    document.getElementById('imagePreview').innerHTML = '';
+    // reset preview transform to start
+    document.getElementById('imagePreview').style.transform = 'translateX(0)';
+    return;
+  }
+
+  placeholder.style.display='none';
+  imgEl.style.display='block';
+  imgEl.style.opacity = 0;
+
+  // preload in a temp image to avoid flicker
+  const url = currentGallery.urls[currentGallery.idx];
+  const temp = new Image();
+  temp.onload = () => {
+    // compute ratio and set size
+    const wrapperWidth = wrapper.clientWidth - padding;
+    const wrapperHeight = wrapper.clientHeight - padding;
+    const ratio = Math.min(wrapperWidth / temp.naturalWidth, wrapperHeight / temp.naturalHeight);
+    imgEl.width = temp.naturalWidth * ratio;
+    imgEl.height = temp.naturalHeight * ratio;
+
+    // set main src and fade in
+    imgEl.src = url;
+    imgEl.style.transition = 'opacity 0.4s ease-in-out';
+    // ensure repaint before transition
+    requestAnimationFrame(() => { imgEl.style.opacity = 1; });
+  };
+  temp.src = url;
+
+  info.textContent = `${currentGallery.idx+1} / ${currentGallery.urls.length}`;
+
+  // update preview strip (deterministic)
+  updatePreviewStrip();
+}
+
+// -------------------------------
+// Arrow handlers
+// -------------------------------
+document.getElementById('prevImage').onclick = ()=>{
+  if(!currentGallery.urls.length) return;
+  currentGallery.idx = (currentGallery.idx-1+currentGallery.urls.length)%currentGallery.urls.length;
+  showGalleryState();
+};
+document.getElementById('nextImage').onclick = ()=>{
+  if(!currentGallery.urls.length) return;
+  currentGallery.idx = (currentGallery.idx+1)%currentGallery.urls.length;
+  showGalleryState();
+};
+
+// -------------------------------
+// Prefecture interaction
+// -------------------------------
+function onEachPrefecture(feature, layer) {
+  layer.on({
+    mouseover:(e)=>e.target.setStyle(highlightStyle()),
+    mouseout:(e)=>prefectureLayer.resetStyle(e.target),
+    click: async ()=>{
+      const nameEn = feature.properties['name:en'] ?? 'Unknown';
+      const nameJa = feature.properties['name:ja'] ?? '';
+      const key = sanitizeKey(nameEn);
+      document.getElementById('prefNameEn').innerText=nameEn;
+      document.getElementById('prefNameJa').innerText=nameJa;
+
+      // reset gallery and preview immediately (prevents leftover transform)
+      currentGallery = {urls: [], idx: 0};
+      document.getElementById('imagePreview').innerHTML = '';
+      document.getElementById('imagePreview').style.transform = 'translateX(0)';
+      showGalleryState(); // show placeholder immediately
+
+      const urls = await loadImagesForKey(key,12);
+      currentGallery.urls = urls;
+      currentGallery.idx = 0;
+      showGalleryState(); // show first image (or placeholder)
+      openSidebar();
+    }
+  });
+}
+
+// -------------------------------
+// Load GeoJSON
+// -------------------------------
+let prefectureLayer;
+fetch('prefectures_land_only_clean.geojson')
+  .then(res=>res.json())
+  .then(data=>{
+    prefectureLayer=L.geoJSON(data,{
+      style: prefectureStyle,
+      onEachFeature:onEachPrefecture,
+      interactive:true,
+      fill:true
+    }).addTo(map);
+    map.fitBounds(prefectureLayer.getBounds());
+  }).catch(err=>console.error('GeoJSON load error:',err));
+</script>
+</body>
+</html>

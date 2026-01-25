@@ -1,0 +1,167 @@
+html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    overflow: hidden; /* prevent full page scroll */
+}
+
+#map {
+    width: 100%;
+    height: 100%;
+}
+
+/* Sidebar */
+#sidebar {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 520px;
+    height: 100%;
+    background: #fff;
+    box-shadow: -2px 0 5px rgba(0,0,0,0.3);
+    transition: right 0.3s, opacity 0.3s;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    opacity: 0;
+    pointer-events: none;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+}
+
+#sidebar.open { 
+    right: 0;
+    opacity: 1;
+    pointer-events: auto;
+}
+
+#sidebar.closing {
+    opacity: 0;
+    pointer-events: none;
+}
+
+#closeSidebar {
+    align-self: flex-end;
+    font-size: 22px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    margin: 4px 0;
+}
+
+#sidebarContent {
+    flex: 1; /* take remaining vertical space */
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto; /* scroll only within sidebar */
+    padding: 0 10px 10px 10px;
+}
+
+#sidebarContent h2 {
+    margin: 6px 0 2px 0;
+}
+#sidebarContent h3 {
+    margin: 0 0 8px 0;
+    font-weight: normal;
+    color: #666;
+}
+
+#imageWrapper {
+    position: relative;
+    flex: 1;
+    display: flex;
+    background: #f3f3f3;
+    justify-content: center;
+    align-items: center;
+    padding: 10px;
+    box-sizing: border-box;
+}
+
+#prefImage {
+    max-width: calc(100% - 5px);
+    max-height: calc(100% - 5px);
+    display: none;
+    object-fit: contain;
+    opacity: 0;
+    transition: opacity 0.4s ease-in-out;
+}
+
+#imagePlaceholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background:#f6f6f6;
+    color:#666;
+    border:1px dashed #ddd;
+    text-align: center;
+}
+
+/* Gallery controls fixed at bottom */
+#galleryControls {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 6px 0;
+    position: sticky;
+    bottom: 0;
+    background: #fff;
+}
+
+#galleryControls button {
+    flex: 1;
+    padding: 6px;
+    background: #efefef;
+    border: 1px solid #ddd;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+#galleryControls button:hover {
+    background: #ddd;
+}
+
+#galleryInfo {
+    text-align: center;
+    margin-top: 4px;
+    font-size: 13px;
+    color: #555;
+}
+/* Image preview strip */
+/* Preview wrapper */
+#imagePreviewWrapper {
+    height: 56px;
+    overflow: hidden;
+    position: relative;
+  }
+  
+  /* Preview strip */
+  #imagePreview {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    will-change: transform;
+    transition: transform 0.35s cubic-bezier(.2,.9,.2,1);
+  }
+  
+  /* Fixed-size thumbnail box */
+  #imagePreview img {
+    width: 48px;
+    height: 48px;          /* FIXED */
+    object-fit: cover;
+    flex-shrink: 0;
+  
+    opacity: 0.6;
+    transform: scale(0.85);
+    transition:
+      opacity 0.25s ease,
+      transform 0.25s ease;
+  }
+  
+  /* Active image: VISUAL ONLY change */
+  #imagePreview img.active {
+    opacity: 1;
+    transform: scale(1.15); /* NO SIZE CHANGE */
+  }
+  
+
