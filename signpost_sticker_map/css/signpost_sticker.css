@@ -179,3 +179,27 @@ html, body {
     opacity: 1;
     transform: scale(1.15);
 }
+/* Warning layout inside the placeholder */
+#imagePlaceholder { 
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 6px;
+    text-align: center;
+  }
+  
+  /* emoji styling */
+  #imagePlaceholder .no-meta-emoji {
+    font-size: 28px;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+  
+  /* warning text */
+  #imagePlaceholder .no-meta-text {
+    font-weight: 600;
+    font-size: 13px;
+    color: #333;
+  }
+  
