@@ -1,4 +1,4 @@
-// js/sidebar.js v1.0.5
+// js/sidebar.js v1.0.6
 
 /**
  * Open the sidebar
@@ -42,11 +42,12 @@ export function showNoMeta(text = 'No meta available') {
   // Clear previous content
   placeholder.innerHTML = '';
 
-  // Add ⚠ emoji and text
+  // Add ⚠ emoji
   const emoji = document.createElement('div');
   emoji.className = 'no-meta-emoji';
   emoji.textContent = '⚠';
 
+  // Add text below emoji
   const txt = document.createElement('div');
   txt.className = 'no-meta-text';
   txt.textContent = text;
@@ -54,8 +55,8 @@ export function showNoMeta(text = 'No meta available') {
   placeholder.appendChild(emoji);
   placeholder.appendChild(txt);
 
+  // Show placeholder, hide everything else
   placeholder.style.display = 'flex';
-  document.getElementById('placeholderText').style.display = 'none';
   document.getElementById('prefImage').style.display = 'none';
   document.getElementById('imagePreview').innerHTML = '';
   document.getElementById('galleryInfo').textContent = '';
@@ -79,11 +80,17 @@ export function showLoading(text = 'Loading image...') {
 
   // Add text below spinner
   const txt = document.createElement('div');
-  txt.id = 'placeholderText';
+  txt.className = 'no-meta-text'; // reuse styling but text is below spinner
   txt.textContent = text;
   placeholder.appendChild(txt);
 
+  // Show placeholder and center content
   placeholder.style.display = 'flex';
+  placeholder.style.flexDirection = 'column';
+  placeholder.style.justifyContent = 'center';
+  placeholder.style.alignItems = 'center';
+
+  // Hide other UI elements
   document.getElementById('prefImage').style.display = 'none';
   document.getElementById('imagePreview').innerHTML = '';
   document.getElementById('galleryInfo').textContent = '';
