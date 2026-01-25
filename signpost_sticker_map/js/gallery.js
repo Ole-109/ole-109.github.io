@@ -1,3 +1,4 @@
+// js/gallery.js
 import { probeImageUrl } from './utils.js';
 import { showNoMeta } from './sidebar.js';
 
@@ -30,35 +31,17 @@ export default class Gallery {
     this.nextBtn.addEventListener('click', () => this.showNext());
   }
 
-  /**
-   * Reset the gallery UI
-   * @param {string} placeholderText Text to show while loading
-   */
   reset(placeholderText = 'Loading...') {
     this.urls = [];
     this.idx = 0;
     this.previewEl.innerHTML = '';
     this.previewEl.style.transform = 'translateX(0)';
     this.imageEl.style.display = 'none';
+    this.placeholderEl.style.display = 'flex';
+    this.placeholderTextEl.innerHTML = `<div class="spinner"></div>${placeholderText}`;
     this.infoEl.textContent = '';
-
-    // Show placeholder only if text is not no-meta
-    if (placeholderText.toLowerCase().includes('no meta')) {
-      showNoMeta();
-    } else {
-      this.placeholderEl.style.display = 'flex';
-      const spinner = this.placeholderEl.querySelector('.spinner');
-      if (spinner) spinner.style.display = 'block';
-      this.placeholderTextEl.textContent = placeholderText;
-    }
   }
 
-  /**
-   * Load images for a given key
-   * @param {string} key
-   * @param {number} maxImages
-   * @returns {Promise<boolean>} true if at least one image loaded
-   */
   async loadForKey(key, maxImages = 12) {
     if (!key) {
       showNoMeta();
@@ -77,9 +60,11 @@ export default class Gallery {
       candidates.push(`images/${key}.${ext}`);
     }
 
-    // Probe all candidates concurrently (limited to maxImages)
     const probes = await Promise.all(
-      candidates.map(async url => (await probeImageUrl(url)) ? url : null)
+      candidates.map(async url => {
+        const exists = await probeImageUrl(url);
+        return exists ? url : null;
+      })
     );
 
     const urls = [];
@@ -106,13 +91,10 @@ export default class Gallery {
 
   showCurrent() {
     const url = this.urls[this.idx];
-    if (!url) return showNoMeta();
+    if (!url) return;
 
-    // Show placeholder with spinner while loading
     this.placeholderEl.style.display = 'flex';
-    const spinner = this.placeholderEl.querySelector('.spinner');
-    if (spinner) spinner.style.display = 'block';
-    this.placeholderTextEl.textContent = 'Loading image...';
+    this.placeholderTextEl.innerHTML = `<div class="spinner"></div>Loading image...`;
     this.imageEl.style.display = 'none';
     this.imageEl.style.opacity = 0;
 
@@ -130,16 +112,18 @@ export default class Gallery {
       this.imageEl.src = url;
       this.imageEl.style.transition = 'opacity 0.35s ease-in-out';
 
-      // Hide placeholder after load
       this.placeholderEl.style.display = 'none';
       this.imageEl.style.display = 'block';
-      requestAnimationFrame(() => (this.imageEl.style.opacity = 1));
+      requestAnimationFrame(() => {
+        this.imageEl.style.opacity = 1;
+      });
 
       this.updatePreviewStrip();
       this.infoEl.textContent = `${this.idx + 1} / ${this.urls.length}`;
     };
-    temp.onerror = () => showNoMeta('Failed to load image');
-
+    temp.onerror = () => {
+      showNoMeta('Failed to load image'); // ⚠ replaces spinner here
+    };
     temp.src = url + '?_v=' + Date.now();
   }
 
