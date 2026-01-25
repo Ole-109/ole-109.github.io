@@ -32,21 +32,51 @@ export function setPrefectureNames(nameEn, nameJa) {
 }
 
 /**
+ * Show spinner for loading images
+ * @param {string} text Optional text under spinner
+ */
+export function showLoading(text = 'Loading image...') {
+  const placeholder = document.getElementById('imagePlaceholder');
+  const placeholderText = document.getElementById('placeholderText');
+  const imageEl = document.getElementById('prefImage');
+  const previewEl = document.getElementById('imagePreview');
+  const galleryInfo = document.getElementById('galleryInfo');
+
+  placeholder.style.display = 'flex';
+  imageEl.style.display = 'none';
+  previewEl.innerHTML = '';
+  galleryInfo.textContent = '';
+
+  // Use stacked layout
+  placeholderText.innerHTML = `
+    <div class="stacked">
+      <span class="spinner"></span>
+      <span class="loading-text">${text}</span>
+    </div>
+  `;
+}
+
+/**
  * Show the ⚠ No meta available message in the image placeholder
  * @param {string} text Optional text override
  */
 export function showNoMeta(text = 'No meta available') {
   const placeholder = document.getElementById('imagePlaceholder');
   const placeholderText = document.getElementById('placeholderText');
-  const spinner = placeholder.querySelector('.spinner');
-
-  // Hide spinner completely
-  if (spinner) spinner.style.display = 'none';
+  const imageEl = document.getElementById('prefImage');
+  const previewEl = document.getElementById('imagePreview');
+  const galleryInfo = document.getElementById('galleryInfo');
 
   placeholder.style.display = 'flex';
-  placeholderText.innerHTML = `<span class="no-meta-emoji">⚠</span><span class="no-meta-text">${text}</span>`;
+  imageEl.style.display = 'none';
+  previewEl.innerHTML = '';
+  galleryInfo.textContent = '';
 
-  document.getElementById('prefImage').style.display = 'none';
-  document.getElementById('imagePreview').innerHTML = '';
-  document.getElementById('galleryInfo').textContent = '';
+  // Use stacked layout
+  placeholderText.innerHTML = `
+    <div class="stacked">
+      <span class="no-meta-emoji">⚠</span>
+      <span class="no-meta-text">${text}</span>
+    </div>
+  `;
 }

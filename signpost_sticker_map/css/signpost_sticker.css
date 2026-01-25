@@ -90,18 +90,23 @@ html, body {
     width: 100%;
     height: 100%;
     display: flex;
-    align-items: center;
-    justify-content: center;
+    align-items: center;       /* vertically center */
+    justify-content: center;   /* horizontally center */
     flex-direction: column;
+    gap: 6px;
+    text-align: center;
     background: #f6f6f6;
     color: #666;
     border: 1px dashed #ddd;
-    text-align: center;
+    position: relative;
 }
 
-#placeholderText {
+/* Text under spinner / emoji */
+#placeholderText,
+#imagePlaceholder .loading-text {
     margin-top: 6px;
     font-size: 14px;
+    color: #666;
 }
 
 /* Spinner */
@@ -112,9 +117,33 @@ html, body {
     border: 4px solid rgba(0,0,0,0.1);
     border-top-color: rgba(0,0,0,0.3);
     animation: spin 1s linear infinite;
+    display: block;
+    margin: 0 auto;
 }
 
-@keyframes spin { to { transform: rotate(360deg); } }
+/* No-meta emoji styling */
+#imagePlaceholder .no-meta-emoji {
+    font-size: 28px;
+    line-height: 1;
+    margin-bottom: 4px;
+    display: block;
+}
+
+/* No-meta text styling */
+#imagePlaceholder .no-meta-text {
+    font-weight: 600;
+    font-size: 13px;
+    color: #333;
+}
+
+/* Flex container to stack spinner/emoji + text */
+#imagePlaceholder .stacked {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+}
 
 /* Gallery controls fixed at bottom */
 #galleryControls {
@@ -179,27 +208,3 @@ html, body {
     opacity: 1;
     transform: scale(1.15);
 }
-/* Warning layout inside the placeholder */
-#imagePlaceholder { 
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-direction: column;
-    gap: 6px;
-    text-align: center;
-  }
-  
-  /* emoji styling */
-  #imagePlaceholder .no-meta-emoji {
-    font-size: 28px;
-    line-height: 1;
-    margin-bottom: 4px;
-  }
-  
-  /* warning text */
-  #imagePlaceholder .no-meta-text {
-    font-weight: 600;
-    font-size: 13px;
-    color: #333;
-  }
-  
