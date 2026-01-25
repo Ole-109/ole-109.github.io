@@ -1,4 +1,3 @@
-// js/gallery.js
 import { probeImageUrl } from './utils.js';
 import { showNoMeta } from './sidebar.js';
 
@@ -41,9 +40,17 @@ export default class Gallery {
     this.previewEl.innerHTML = '';
     this.previewEl.style.transform = 'translateX(0)';
     this.imageEl.style.display = 'none';
-    this.placeholderEl.style.display = 'flex';
-    this.placeholderTextEl.textContent = placeholderText;
     this.infoEl.textContent = '';
+
+    // Show placeholder only if text is not no-meta
+    if (placeholderText.toLowerCase().includes('no meta')) {
+      showNoMeta();
+    } else {
+      this.placeholderEl.style.display = 'flex';
+      const spinner = this.placeholderEl.querySelector('.spinner');
+      if (spinner) spinner.style.display = 'block';
+      this.placeholderTextEl.textContent = placeholderText;
+    }
   }
 
   /**
@@ -70,12 +77,9 @@ export default class Gallery {
       candidates.push(`images/${key}.${ext}`);
     }
 
-    // Probe all candidates concurrently (limited to 12 successful images)
+    // Probe all candidates concurrently (limited to maxImages)
     const probes = await Promise.all(
-      candidates.map(async url => {
-        const exists = await probeImageUrl(url);
-        return exists ? url : null;
-      })
+      candidates.map(async url => (await probeImageUrl(url)) ? url : null)
     );
 
     const urls = [];
@@ -102,9 +106,12 @@ export default class Gallery {
 
   showCurrent() {
     const url = this.urls[this.idx];
-    if (!url) return;
+    if (!url) return showNoMeta();
 
+    // Show placeholder with spinner while loading
     this.placeholderEl.style.display = 'flex';
+    const spinner = this.placeholderEl.querySelector('.spinner');
+    if (spinner) spinner.style.display = 'block';
     this.placeholderTextEl.textContent = 'Loading image...';
     this.imageEl.style.display = 'none';
     this.imageEl.style.opacity = 0;
@@ -123,18 +130,16 @@ export default class Gallery {
       this.imageEl.src = url;
       this.imageEl.style.transition = 'opacity 0.35s ease-in-out';
 
+      // Hide placeholder after load
       this.placeholderEl.style.display = 'none';
       this.imageEl.style.display = 'block';
-      requestAnimationFrame(() => {
-        this.imageEl.style.opacity = 1;
-      });
+      requestAnimationFrame(() => (this.imageEl.style.opacity = 1));
 
       this.updatePreviewStrip();
       this.infoEl.textContent = `${this.idx + 1} / ${this.urls.length}`;
     };
-    temp.onerror = () => {
-      showNoMeta('Failed to load image');
-    };
+    temp.onerror = () => showNoMeta('Failed to load image');
+
     temp.src = url + '?_v=' + Date.now();
   }
 

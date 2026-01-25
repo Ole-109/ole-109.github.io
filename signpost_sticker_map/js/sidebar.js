@@ -1,5 +1,3 @@
-// js/sidebar.js
-
 /**
  * Open the sidebar
  */
@@ -33,14 +31,22 @@ export function setPrefectureNames(nameEn, nameJa) {
 
 /**
  * Show the ⚠ No meta available message in the image placeholder
+ * Hides spinner and preview completely
  * @param {string} text Optional text override
  */
 export function showNoMeta(text = 'No meta available') {
   const placeholder = document.getElementById('imagePlaceholder');
   const placeholderText = document.getElementById('placeholderText');
+  const spinner = placeholder.querySelector('.spinner');
 
+  // Hide spinner
+  if (spinner) spinner.style.display = 'none';
+
+  // Show emoji + text
   placeholder.style.display = 'flex';
   placeholderText.innerHTML = `<span class="no-meta-emoji">⚠</span><span class="no-meta-text">${text}</span>`;
+
+  // Hide main image and preview strip
   document.getElementById('prefImage').style.display = 'none';
   document.getElementById('imagePreview').innerHTML = '';
   document.getElementById('galleryInfo').textContent = '';
