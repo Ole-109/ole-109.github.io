@@ -1,4 +1,5 @@
 // js/sidebar.js
+// Version 1.0.1
 
 /**
  * Open the sidebar
@@ -32,51 +33,49 @@ export function setPrefectureNames(nameEn, nameJa) {
 }
 
 /**
- * Show spinner for loading images
- * @param {string} text Optional text under spinner
- */
-export function showLoading(text = 'Loading image...') {
-  const placeholder = document.getElementById('imagePlaceholder');
-  const placeholderText = document.getElementById('placeholderText');
-  const imageEl = document.getElementById('prefImage');
-  const previewEl = document.getElementById('imagePreview');
-  const galleryInfo = document.getElementById('galleryInfo');
-
-  placeholder.style.display = 'flex';
-  imageEl.style.display = 'none';
-  previewEl.innerHTML = '';
-  galleryInfo.textContent = '';
-
-  // Use stacked layout
-  placeholderText.innerHTML = `
-    <div class="stacked">
-      <span class="spinner"></span>
-      <span class="loading-text">${text}</span>
-    </div>
-  `;
-}
-
-/**
  * Show the ⚠ No meta available message in the image placeholder
  * @param {string} text Optional text override
  */
 export function showNoMeta(text = 'No meta available') {
   const placeholder = document.getElementById('imagePlaceholder');
   const placeholderText = document.getElementById('placeholderText');
-  const imageEl = document.getElementById('prefImage');
-  const previewEl = document.getElementById('imagePreview');
+  const prefImage = document.getElementById('prefImage');
+  const imagePreview = document.getElementById('imagePreview');
   const galleryInfo = document.getElementById('galleryInfo');
 
-  placeholder.style.display = 'flex';
-  imageEl.style.display = 'none';
-  previewEl.innerHTML = '';
+  // Hide image and preview
+  prefImage.style.display = 'none';
+  imagePreview.innerHTML = '';
   galleryInfo.textContent = '';
 
-  // Use stacked layout
+  // Show placeholder with ⚠ emoji above text
+  placeholder.style.display = 'flex';
   placeholderText.innerHTML = `
-    <div class="stacked">
-      <span class="no-meta-emoji">⚠</span>
-      <span class="no-meta-text">${text}</span>
-    </div>
+    <span class="no-meta-emoji">⚠</span>
+    <span class="no-meta-text">${text}</span>
+  `;
+}
+
+/**
+ * Show a loading spinner centered in the placeholder
+ * @param {string} text Optional text to show below spinner
+ */
+export function showLoading(text = 'Loading image...') {
+  const placeholder = document.getElementById('imagePlaceholder');
+  const placeholderText = document.getElementById('placeholderText');
+  const prefImage = document.getElementById('prefImage');
+  const imagePreview = document.getElementById('imagePreview');
+  const galleryInfo = document.getElementById('galleryInfo');
+
+  // Hide image and preview
+  prefImage.style.display = 'none';
+  imagePreview.innerHTML = '';
+  galleryInfo.textContent = '';
+
+  // Show spinner and text
+  placeholder.style.display = 'flex';
+  placeholderText.innerHTML = `
+    <div class="spinner"></div>
+    <span class="no-meta-text">${text}</span>
   `;
 }
