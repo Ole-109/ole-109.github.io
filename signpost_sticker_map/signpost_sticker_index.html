@@ -54,7 +54,7 @@
 // Map init
 // -------------------------------
 const map = L.map('map', { minZoom: 6, maxZoom: 7}).setView([36.2, 138.0], 5);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap contributors' }).addTo(map);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png', { attribution: '© OpenStreetMap contributors' }).addTo(map);
 
 function prefectureStyle(feature) { return { color: '#333', weight: 1, fillColor: '#88aaff', fillOpacity: 0.6 }; }
 function highlightStyle() { return { weight: 2, color: '#000', fillOpacity: 0.8 }; }
