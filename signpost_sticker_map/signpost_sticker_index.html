@@ -26,7 +26,10 @@
     <h3 id="prefNameJa"></h3>
 
     <div id="imageWrapper">
-      <div id="imagePlaceholder">No image yet</div>
+      <div id="imagePlaceholder">
+        <div class="spinner" aria-hidden="true"></div>
+        <div id="placeholderText">No image yet</div>
+      </div>
       <img id="prefImage" src="" alt="Signpost sticker" />
     </div>
 
@@ -89,38 +92,61 @@ function sanitizeKey(nameEn) {
   return nameEn.trim().split(/\s+/)[0].toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
+// Probe a single URL -> Promise<boolean>
 function probeImage(url) {
   return new Promise(resolve => {
     const img = new Image();
     img.onload = () => resolve(true);
     img.onerror = () => resolve(false);
-    img.src = url + '?_t=' + Date.now();
+    // small cache-bust for probe to avoid stale 404 caches
+    img.src = url + '?_probe=' + Date.now();
   });
 }
 
+// Build a candidate list and probe in parallel, return ordered unique URLs up to maxImages
 async function loadImagesForKey(key, maxImages = 12) {
-  const found = [];
-  if (!key) return found;
+  if (!key) return [];
   const exts = ['png','jpg','jpeg','webp'];
-  for (let i=1;i<=maxImages;i++){
-    for(const ext of exts){
-      const url = `images/${key}/${i}.${ext}`;
-      if(await probeImage(url)){
-        found.push(url);
-        break;
-      }
+  const candidates = [];
+
+  // numbered files (images/<key>/1.ext ... )
+  for (let i = 1; i <= maxImages; i++) {
+    for (const ext of exts) {
+      candidates.push({ url: `images/${key}/${i}.${ext}`, order: i * 10 + exts.indexOf(ext) });
     }
   }
-  if(found.length===0){
-    for(const ext of exts){
-      const url=`images/${key}.${ext}`;
-      if(await probeImage(url)){
-        found.push(url);
-        break;
-      }
+  // fallback root images (images/<key>.ext)
+  for (const ext of exts) {
+    candidates.push({ url: `images/${key}.${ext}`, order: 9999 + exts.indexOf(ext) });
+  }
+
+  // Probe all candidates in parallel (Promise.allSettled). This is faster than sequential probing.
+  const probes = await Promise.allSettled(candidates.map(c => probeImage(c.url)));
+
+  // Collect successful URLs with their order
+  const successes = [];
+  for (let i = 0; i < probes.length; i++) {
+    if (probes[i].status === 'fulfilled' && probes[i].value === true) {
+      successes.push({ url: candidates[i].url, order: candidates[i].order, idx: i });
     }
   }
-  return found;
+
+  if (successes.length === 0) return [];
+
+  // Sort by order to keep numeric ordering (1..12) first, then root fallback
+  successes.sort((a, b) => a.order - b.order || a.idx - b.idx);
+
+  // Remove duplicates (if any) and return up to maxImages
+  const out = [];
+  const seen = new Set();
+  for (const s of successes) {
+    if (!seen.has(s.url)) {
+      out.push(s.url);
+      seen.add(s.url);
+    }
+    if (out.length >= maxImages) break;
+  }
+  return out;
 }
 
 // -------------------------------
@@ -141,23 +167,26 @@ function updatePreviewStrip() {
   const GAP = 6;            // spacing between thumbs (matches CSS)
   const SLOT = THUMB_WIDTH + GAP;
 
-  // Build thumbnails
+  // Build thumbnails (lazy) and make them clickable
   currentGallery.urls.forEach((url, i) => {
     const img = document.createElement('img');
     img.src = url;
     img.alt = `preview ${i+1}`;
-    if (i === currentGallery.idx) img.classList.add('active');
+    img.loading = 'lazy';
+    img.width = THUMB_WIDTH;
+    img.height = THUMB_WIDTH;
+    img.className = (i === currentGallery.idx) ? 'active' : '';
+    img.onclick = () => {
+      currentGallery.idx = i;
+      showGalleryState();
+    };
     preview.appendChild(img);
   });
 
   // Compute transform so that thumbnail at index `currentGallery.idx` is centered.
-  // centerX is the transform x where index 0 would be positioned so index idx ends up centered.
   const wrapperWidth = wrapper.clientWidth;
   const centerX = Math.round(wrapperWidth / 2 - THUMB_WIDTH / 2);
-
-  // offset to apply to preview: position index 0 at `centerX`, then shift left by idx*SLOT
   const offset = centerX - currentGallery.idx * SLOT;
-
   preview.style.transform = `translateX(${offset}px)`;
 }
 
@@ -169,6 +198,7 @@ let currentGallery = {urls: [], idx: 0};
 function showGalleryState() {
   const imgEl = document.getElementById('prefImage');
   const placeholder = document.getElementById('imagePlaceholder');
+  const placeholderText = document.getElementById('placeholderText');
   const info = document.getElementById('galleryInfo');
   const wrapper = document.getElementById('imageWrapper');
   const padding = 20; // total padding in px
@@ -176,40 +206,78 @@ function showGalleryState() {
   if(!currentGallery.urls.length){
     imgEl.style.display='none';
     placeholder.style.display='flex';
-    info.textContent='No images found. Add images to images/<prefkey>/ or images/<prefkey>.png';
+    placeholderText.textContent = 'No images found. Add images to images/<prefkey>/ or images/<prefkey>.png';
     document.getElementById('imagePreview').innerHTML = '';
-    // reset preview transform to start
     document.getElementById('imagePreview').style.transform = 'translateX(0)';
+    info.textContent = '';
     return;
   }
 
-  placeholder.style.display='none';
-  imgEl.style.display='block';
+  // Show placeholder with "Loading..." while this single image loads
+  placeholder.style.display='flex';
+  placeholderText.textContent = 'Loading image...';
+  imgEl.style.display='none';
   imgEl.style.opacity = 0;
 
-  // preload in a temp image to avoid flicker
   const url = currentGallery.urls[currentGallery.idx];
+
+  // Load only this image immediately (preload via temp Image)
   const temp = new Image();
+  temp.decoding = 'async';
   temp.onload = () => {
     // compute ratio and set size
     const wrapperWidth = wrapper.clientWidth - padding;
     const wrapperHeight = wrapper.clientHeight - padding;
     const ratio = Math.min(wrapperWidth / temp.naturalWidth, wrapperHeight / temp.naturalHeight);
-    imgEl.width = temp.naturalWidth * ratio;
-    imgEl.height = temp.naturalHeight * ratio;
+    imgEl.width = Math.round(temp.naturalWidth * ratio);
+    imgEl.height = Math.round(temp.naturalHeight * ratio);
 
     // set main src and fade in
     imgEl.src = url;
-    imgEl.style.transition = 'opacity 0.4s ease-in-out';
-    // ensure repaint before transition
+    imgEl.style.transition = 'opacity 0.35s ease-in-out';
+
+    // hide placeholder and show image
+    placeholder.style.display = 'none';
+    imgEl.style.display = 'block';
     requestAnimationFrame(() => { imgEl.style.opacity = 1; });
+
+    // update preview highlight after show
+    updatePreviewStrip();
   };
-  temp.src = url;
+  temp.onerror = () => {
+    placeholder.style.display = 'flex';
+    placeholderText.textContent = 'Failed to load image';
+    imgEl.style.display = 'none';
+  };
+  // small cache-bust to ensure fresh load for this immediate display
+  temp.src = url + '?_v=' + Date.now();
 
   info.textContent = `${currentGallery.idx+1} / ${currentGallery.urls.length}`;
+}
 
-  // update preview strip (deterministic)
-  updatePreviewStrip();
+// -------------------------------
+// Background preloader
+// Preloads remaining images with low priority (idle or setTimeout)
+// -------------------------------
+function backgroundPreload(urls, skipIndex=0) {
+  const toPreload = urls.filter((u, i) => i !== skipIndex);
+  if (toPreload.length === 0) return;
+
+  const doPreload = () => {
+    toPreload.forEach(u => {
+      const img = new Image();
+      img.decoding = 'async';
+      // allow browser to prioritize cached loads; do not add cache-bust here
+      img.src = u;
+    });
+  };
+
+  if ('requestIdleCallback' in window) {
+    requestIdleCallback(doPreload, { timeout: 2000 });
+  } else {
+    // degrade gracefully
+    setTimeout(doPreload, 500);
+  }
 }
 
 // -------------------------------
@@ -250,29 +318,34 @@ function onEachPrefecture(feature, layer) {
       const preview = document.getElementById('imagePreview');
       preview.innerHTML = '';
       preview.style.transform = 'translateX(0)';
-      showGalleryState(); // placeholder visible
 
-      // Load image URLs first
+      // show immediate placeholder text while probing
+      document.getElementById('placeholderText').textContent = 'Searching images...';
+      document.getElementById('imagePlaceholder').style.display = 'flex';
+      document.getElementById('prefImage').style.display = 'none';
+      document.getElementById('galleryInfo').textContent = '';
+
+      // Load image URLs (parallel probing)
       const urls = await loadImagesForKey(key, 12);
       currentGallery.urls = urls;
 
-      // Preload all images in parallel for speed
-      await Promise.all(
-        urls.map((url) => new Promise((resolve) => {
-          const img = new Image();
-          img.src = url;
-          img.onload = resolve;
-          img.onerror = resolve; // skip errors
-        }))
-      );
+      // Build preview strip immediately (thumbnails will lazy-load)
+      updatePreviewStrip();
 
-      // Show first image immediately (all others preloaded)
+      if (urls.length === 0) {
+        showGalleryState(); // will show "No images found" message
+        return;
+      }
+
+      // Show first image as soon as it is loaded (others will preload in background)
       currentGallery.idx = 0;
       showGalleryState();
+
+      // Preload the rest in background (idle)
+      backgroundPreload(urls, 0);
     }
   });
 }
-
 
 
 // -------------------------------
