@@ -1,4 +1,4 @@
-// js/sidebar.js v1.0.4
+// js/sidebar.js v1.0.5
 
 /**
  * Open the sidebar
@@ -24,8 +24,11 @@ export function closeSidebar() {
  * @param {string} nameJa Japanese name
  */
 export function setPrefectureNames(nameEn, nameJa) {
-  document.getElementById('prefNameEn').innerText = nameEn;
-  document.getElementById('prefNameJa').innerText = nameJa;
+  const elEn = document.getElementById('prefNameEn');
+  const elJa = document.getElementById('prefNameJa');
+
+  elEn.innerText = nameEn;
+  elJa.innerText = nameJa;
 }
 
 /**
@@ -39,12 +42,11 @@ export function showNoMeta(text = 'No meta available') {
   // Clear previous content
   placeholder.innerHTML = '';
 
-  // Add ⚠ emoji
+  // Add ⚠ emoji and text
   const emoji = document.createElement('div');
   emoji.className = 'no-meta-emoji';
   emoji.textContent = '⚠';
 
-  // Add text below emoji
   const txt = document.createElement('div');
   txt.className = 'no-meta-text';
   txt.textContent = text;
@@ -52,21 +54,19 @@ export function showNoMeta(text = 'No meta available') {
   placeholder.appendChild(emoji);
   placeholder.appendChild(txt);
 
-  // Display
   placeholder.style.display = 'flex';
-
-  // Hide image & preview
+  document.getElementById('placeholderText').style.display = 'none';
   document.getElementById('prefImage').style.display = 'none';
   document.getElementById('imagePreview').innerHTML = '';
   document.getElementById('galleryInfo').textContent = '';
 }
 
 /**
- * Show spinner centered in placeholder
+ * Show loading spinner centered in placeholder
  * Used only for blue prefectures while loading images
  * @param {string} text Optional placeholder text
  */
-export function showSpinner(text = 'Loading image...') {
+export function showLoading(text = 'Loading image...') {
   const placeholder = document.getElementById('imagePlaceholder');
 
   // Clear previous content
@@ -79,14 +79,11 @@ export function showSpinner(text = 'Loading image...') {
 
   // Add text below spinner
   const txt = document.createElement('div');
-  txt.className = 'placeholder-text';
+  txt.id = 'placeholderText';
   txt.textContent = text;
   placeholder.appendChild(txt);
 
-  // Display
   placeholder.style.display = 'flex';
-
-  // Ensure image and preview are hidden
   document.getElementById('prefImage').style.display = 'none';
   document.getElementById('imagePreview').innerHTML = '';
   document.getElementById('galleryInfo').textContent = '';
