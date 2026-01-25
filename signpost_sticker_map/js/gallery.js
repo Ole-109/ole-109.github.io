@@ -1,4 +1,4 @@
-// js/gallery.js v1.0.2
+// js/gallery.js
 import { probeImageUrl } from './utils.js';
 import { showNoMeta, showLoading } from './sidebar.js';
 
@@ -41,9 +41,8 @@ export default class Gallery {
     this.previewEl.innerHTML = '';
     this.previewEl.style.transform = 'translateX(0)';
     this.imageEl.style.display = 'none';
-    this.infoEl.textContent = '';
 
-    // Show spinner during loading
+    // Show proper loading spinner
     showLoading(placeholderText);
   }
 
@@ -105,7 +104,7 @@ export default class Gallery {
     const url = this.urls[this.idx];
     if (!url) return;
 
-    // Show spinner while current image is loading
+    // Show spinner centered while loading
     showLoading('Loading image...');
 
     const temp = new Image();
@@ -122,8 +121,7 @@ export default class Gallery {
       this.imageEl.src = url;
       this.imageEl.style.transition = 'opacity 0.35s ease-in-out';
 
-      // Hide placeholder and show image
-      this.placeholderEl.style.display = 'none';
+      this.placeholderEl.style.display = 'none'; // hide spinner after loaded
       this.imageEl.style.display = 'block';
       requestAnimationFrame(() => {
         this.imageEl.style.opacity = 1;

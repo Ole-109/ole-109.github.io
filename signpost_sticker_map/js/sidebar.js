@@ -1,4 +1,4 @@
-// js/sidebar.js v1.0.2
+// js/sidebar.js v1.0.3
 
 /**
  * Open the sidebar
@@ -32,43 +32,62 @@ export function setPrefectureNames(nameEn, nameJa) {
 }
 
 /**
- * Show a ⚠ No meta available message in the image placeholder
+ * Show the ⚠ No meta available message in the image placeholder
+ * Used only for gray prefectures (no images at all)
  * @param {string} text Optional text override
  */
 export function showNoMeta(text = 'No meta available') {
   const placeholder = document.getElementById('imagePlaceholder');
   const placeholderText = document.getElementById('placeholderText');
-  const prefImage = document.getElementById('prefImage');
-  const previewEl = document.getElementById('imagePreview');
-  const galleryInfo = document.getElementById('galleryInfo');
 
-  // Hide image element and preview
-  prefImage.style.display = 'none';
-  previewEl.innerHTML = '';
-  galleryInfo.textContent = '';
+  // Clear spinner if present
+  placeholder.innerHTML = '';
 
-  // Display placeholder with ⚠ and text only
+  // Add ⚠ emoji and text
+  const emoji = document.createElement('div');
+  emoji.className = 'no-meta-emoji';
+  emoji.textContent = '⚠';
+
+  const txt = document.createElement('div');
+  txt.className = 'no-meta-text';
+  txt.textContent = text;
+
+  placeholder.appendChild(emoji);
+  placeholder.appendChild(txt);
+
   placeholder.style.display = 'flex';
-  placeholderText.innerHTML = `<span class="no-meta-emoji">⚠</span><span class="no-meta-text">${text}</span>`;
+  placeholderText.style.display = 'none'; // hide old placeholder text
+  document.getElementById('prefImage').style.display = 'none';
+  document.getElementById('imagePreview').innerHTML = '';
+  document.getElementById('galleryInfo').textContent = '';
 }
 
 /**
- * Show a single centered spinner while loading images
- * @param {string} text Optional loading text
+ * Show spinner centered in placeholder
+ * Used only for blue prefectures while loading images
+ * @param {string} text Optional placeholder text
  */
-export function showLoading(text = 'Loading...') {
+export function showSpinner(text = 'Loading image...') {
   const placeholder = document.getElementById('imagePlaceholder');
   const placeholderText = document.getElementById('placeholderText');
-  const prefImage = document.getElementById('prefImage');
-  const previewEl = document.getElementById('imagePreview');
-  const galleryInfo = document.getElementById('galleryInfo');
 
-  // Hide image element and preview
-  prefImage.style.display = 'none';
-  previewEl.innerHTML = '';
-  galleryInfo.textContent = '';
+  // Clear previous content
+  placeholder.innerHTML = '';
 
-  // Show placeholder with spinner and text
+  // Add spinner
+  const spinner = document.createElement('div');
+  spinner.className = 'spinner';
+  placeholder.appendChild(spinner);
+
+  // Add text below spinner
+  const txt = document.createElement('div');
+  txt.id = 'placeholderText';
+  txt.textContent = text;
+  placeholder.appendChild(txt);
+
   placeholder.style.display = 'flex';
-  placeholderText.innerHTML = `<div class="spinner"></div><span class="no-meta-text">${text}</span>`;
+  placeholderText.style.display = 'block';
+  document.getElementById('prefImage').style.display = 'none';
+  document.getElementById('imagePreview').innerHTML = '';
+  document.getElementById('galleryInfo').textContent = '';
 }

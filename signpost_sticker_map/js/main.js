@@ -1,4 +1,4 @@
-// js/main.js
+// js/main.js v1.0.3
 import { initMap, loadPrefectures, prefectureStyle } from './map.js';
 import { openSidebar, closeSidebar, setPrefectureNames, showNoMeta } from './sidebar.js';
 import Gallery from './gallery.js';
@@ -48,34 +48,39 @@ const gallery = new Gallery({
 });
 
 // -------------------------------
-// Map init
-// -------------------------------
-const map = initMap(dom.map);
-
-// -------------------------------
 // Prefecture click handler
 // -------------------------------
 async function onPrefectureClick(feature, layer) {
   const nameEn = feature.properties['name:en'] ?? 'Unknown';
   const nameJa = feature.properties['name:ja'] ?? '';
 
+  // Update sidebar text
   setPrefectureNames(nameEn, nameJa);
   openSidebar();
 
-  gallery.reset('Searching images...');
+  // Reset gallery UI to show spinner
+  gallery.reset('Loading image...');
+
+  // Build image key
   const key = sanitizeKey(nameEn);
 
-  // Show ⚠ immediately if no images
+  // If we already know this has no images, show no-meta immediately
   if (layer.hasImages === false) {
     showNoMeta();
     return;
   }
 
+  // Load images
   const hasImages = await gallery.loadForKey(key, 12);
+
+  // Update map styling based on result
   if (!hasImages) {
     layer.hasImages = false;
-    layer.setStyle({ fillColor: '#cccccc', fillOpacity: 0.8, color: '#666' });
-    showNoMeta();
+    layer.setStyle({
+      fillColor: '#cccccc',
+      fillOpacity: 0.8,
+      color: '#666',
+    });
     return;
   }
 
@@ -83,34 +88,58 @@ async function onPrefectureClick(feature, layer) {
 }
 
 // -------------------------------
-// Immediate greying + background scan
+// Pre-scan all prefectures for images
+// (marks all layers grey immediately, then flips those that have images)
 // -------------------------------
-async function markMissingPrefectures(prefLayer) {
+async function preScanAllPrefectures(prefLayer) {
   const layers = [];
   prefLayer.eachLayer(l => layers.push(l));
 
-  // 1) Immediately grey all
+  // 1) Immediately set all layers to "no-meta" (grey) without spinner
   layers.forEach(layer => {
     layer.hasImages = false;
     layer.setStyle({ fillColor: '#cccccc', fillOpacity: 0.8, color: '#666' });
   });
 
-  // 2) Fire probes in the background to flip blue if folder exists
-  layers.forEach(layer => {
-    const nameEn = layer.feature?.properties?.['name:en'] ?? '';
-    const key = sanitizeKey(nameEn);
+  // 2) Scan layers asynchronously to flip those with images back to default style
+  const CONCURRENCY = 6;
+  let idx = 0;
 
-    hasImageForKey(key, { maxNumbered: 1 }).then(has => {
-      if (has) {
-        layer.hasImages = true;
-        if (prefLayer && typeof prefLayer.resetStyle === 'function') {
-          prefLayer.resetStyle(layer);
+  async function worker() {
+    while (idx < layers.length) {
+      const layer = layers[idx++];
+      const nameEn = layer.feature?.properties?.['name:en'] ?? '';
+      const key = sanitizeKey(nameEn);
+
+      try {
+        const hasImages = await hasImageForKey(key, { maxNumbered: 1 });
+        if (hasImages) {
+          layer.hasImages = true;
+          if (prefLayer && typeof prefLayer.resetStyle === 'function') {
+            prefLayer.resetStyle(layer);
+          } else {
+            layer.setStyle(prefectureStyle(layer.feature));
+          }
         } else {
-          layer.setStyle(prefectureStyle(layer.feature));
+          // keep grey, no spinner
+          layer.hasImages = false;
+          layer.setStyle({ fillColor: '#cccccc', fillOpacity: 0.8, color: '#666' });
         }
+      } catch (err) {
+        console.error('Error probing images for', key, err);
+        layer.hasImages = false;
+        layer.setStyle({ fillColor: '#cccccc', fillOpacity: 0.8, color: '#666' });
       }
-    }).catch(err => console.error('Error checking images for', key, err));
-  });
+    }
+  }
+
+  const runWorkers = () => Promise.all(new Array(CONCURRENCY).fill().map(() => worker()));
+
+  if ('requestIdleCallback' in window) {
+    requestIdleCallback(() => runWorkers().catch(console.error), { timeout: 2000 });
+  } else {
+    setTimeout(() => runWorkers().catch(console.error), 80);
+  }
 }
 
 // -------------------------------
@@ -121,6 +150,7 @@ loadPrefectures(map, {
   onClick: onPrefectureClick,
 }).then(prefLayer => {
   if (prefLayer) {
-    markMissingPrefectures(prefLayer); // <--- runs immediately on site load
+    // Run pre-scan to mark grey/blue correctly
+    preScanAllPrefectures(prefLayer);
   }
 });
