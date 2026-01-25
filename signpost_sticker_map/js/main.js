@@ -1,64 +1,79 @@
-// js/main.js v1.0.5
-import { initMap, loadPrefectures, prefectureStyle } from './map.js';
+// js/main.js v1.0.6
+import { initMap, loadPrefectures, prefectureStyle, highlightStyle } from './map.js';
 import { openSidebar, closeSidebar, setPrefectureNames, showNoMeta, showLoading } from './sidebar.js';
 import Gallery from './gallery.js';
 import { sanitizeKey, hasImageForKey } from './utils.js';
 
+// -------------------------------
 // DOM references
+// -------------------------------
 const dom = {
-  map: document.getElementById('map'),
+  mapEl: document.getElementById('map'),
   closeSidebarBtn: document.getElementById('closeSidebar'),
-
   prefNameEn: document.getElementById('prefNameEn'),
   prefNameJa: document.getElementById('prefNameJa'),
-
   imageWrapper: document.getElementById('imageWrapper'),
   imagePlaceholder: document.getElementById('imagePlaceholder'),
+  placeholderText: document.getElementById('placeholderText'),
   prefImage: document.getElementById('prefImage'),
-
   imagePreview: document.getElementById('imagePreview'),
   imagePreviewWrapper: document.getElementById('imagePreviewWrapper'),
-
   prevImage: document.getElementById('prevImage'),
   nextImage: document.getElementById('nextImage'),
   galleryInfo: document.getElementById('galleryInfo'),
 };
 
-// Sidebar close
+// -------------------------------
+// Initialize Leaflet map
+// -------------------------------
+const map = initMap(dom.mapEl);
+
+// -------------------------------
+// Sidebar close handler
+// -------------------------------
 dom.closeSidebarBtn.addEventListener('click', closeSidebar);
 
+// -------------------------------
 // Gallery init
+// -------------------------------
 const gallery = new Gallery({
   previewEl: dom.imagePreview,
   previewWrapperEl: dom.imagePreviewWrapper,
   imageEl: dom.prefImage,
   imageWrapperEl: dom.imageWrapper,
+  placeholderEl: dom.imagePlaceholder,
+  placeholderTextEl: dom.placeholderText,
   infoEl: dom.galleryInfo,
+  prevBtn: dom.prevImage,
+  nextBtn: dom.nextImage,
 });
 
-// Prefecture click
+// -------------------------------
+// Prefecture click handler
+// -------------------------------
 async function onPrefectureClick(feature, layer) {
   const nameEn = feature.properties['name:en'] ?? 'Unknown';
   const nameJa = feature.properties['name:ja'] ?? '';
 
+  // Update sidebar text
   setPrefectureNames(nameEn, nameJa);
   openSidebar();
 
   const key = sanitizeKey(nameEn);
 
-  // Gray prefecture
+  // Gray prefecture (no images)
   if (layer.hasImages === false) {
     showNoMeta();
     return;
   }
 
-  // Blue prefecture → show spinner
+  // Blue prefecture: show spinner while loading
   showLoading('Loading image...');
 
   const hasImages = await gallery.loadForKey(key, 12);
 
   if (!hasImages) {
-    // mark gray & show ⚠
+    // If loading failed, mark gray and show ⚠
     layer.hasImages = false;
     layer.setStyle({ fillColor: '#cccccc', fillOpacity: 0.8, color: '#666' });
     showNoMeta();
@@ -68,18 +83,20 @@ async function onPrefectureClick(feature, layer) {
   layer.hasImages = true;
 }
 
+// -------------------------------
 // Pre-scan all prefectures for images
+// -------------------------------
 async function preScanAllPrefectures(prefLayer) {
   const layers = [];
   prefLayer.eachLayer(l => layers.push(l));
 
-  // initially gray
+  // Step 1: mark all as gray (no-meta)
   layers.forEach(layer => {
     layer.hasImages = false;
     layer.setStyle({ fillColor: '#cccccc', fillOpacity: 0.8, color: '#666' });
   });
 
-  // async scan for images
+  // Step 2: asynchronously probe for images
   const CONCURRENCY = 6;
   let idx = 0;
 
@@ -100,7 +117,7 @@ async function preScanAllPrefectures(prefLayer) {
           }
         }
       } catch (err) {
-        console.error('Error checking images for', key, err);
+        console.error('Error probing images for', key, err);
         layer.hasImages = false;
         layer.setStyle({ fillColor: '#cccccc', fillOpacity: 0.8, color: '#666' });
       }
@@ -116,8 +133,10 @@ async function preScanAllPrefectures(prefLayer) {
   }
 }
 
-// Load GeoJSON
-loadPrefectures(dom.map, {
+// -------------------------------
+// Load GeoJSON & bind interactions
+// -------------------------------
+loadPrefectures(map, {
   geojsonUrl: 'data/prefectures_land_only_clean.geojson',
   onClick: onPrefectureClick,
 }).then(prefLayer => {
