@@ -2,7 +2,7 @@
 import { initMap, loadPrefectures } from './map.js';
 import { openSidebar, closeSidebar, setPrefectureNames } from './sidebar.js';
 import Gallery from './gallery.js';
-import { sanitizeKey } from './utils.js';
+import { sanitizeKey, hasImageForKey } from './utils.js';
 
 // -------------------------------
 // DOM references
@@ -87,9 +87,60 @@ async function onPrefectureClick(feature, layer) {
 }
 
 // -------------------------------
+// Pre-scan all prefectures for images
+// -------------------------------
+async function preScanAllPrefectures(prefLayer) {
+  const layers = [];
+  prefLayer.eachLayer(l => layers.push(l));
+
+  const CONCURRENCY = 6;
+  let idx = 0;
+
+  async function worker() {
+    while (idx < layers.length) {
+      const layer = layers[idx++];
+      const nameEn = layer.feature?.properties?.['name:en'] ?? '';
+      const key = sanitizeKey(nameEn);
+
+      try {
+        const hasImages = await hasImageForKey(key, { maxNumbered: 1 });
+        if (!hasImages) {
+          layer.hasImages = false;
+          layer.setStyle({
+            fillColor: '#cccccc',
+            fillOpacity: 0.8,
+            color: '#666',
+          });
+        } else {
+          layer.hasImages = true;
+          if (prefLayer && typeof prefLayer.resetStyle === 'function') {
+            prefLayer.resetStyle(layer);
+          }
+        }
+      } catch (err) {
+        console.error('Error probing images for', key, err);
+        layer.hasImages = false;
+        layer.setStyle({
+          fillColor: '#cccccc',
+          fillOpacity: 0.8,
+          color: '#666',
+        });
+      }
+    }
+  }
+
+  await Promise.all(new Array(CONCURRENCY).fill().map(() => worker()));
+}
+
+// -------------------------------
 // Load GeoJSON & bind interaction
 // -------------------------------
 loadPrefectures(map, {
   geojsonUrl: 'data/prefectures_land_only_clean.geojson',
   onClick: onPrefectureClick,
+}).then(prefLayer => {
+  if (prefLayer) {
+    // Run background pre-scan
+    preScanAllPrefectures(prefLayer).catch(err => console.error('preScan error', err));
+  }
 });
