@@ -27,7 +27,12 @@
 
     <div id="imageWrapper">
       <div id="imagePlaceholder">
-        <div class="spinner" aria-hidden="true"></div>
+        <!-- spinner (shown while loading) -->
+        <div id="spinner" class="spinner" aria-hidden="true"></div>
+
+        <!-- warning icon (shown when no meta available) -->
+        <div id="warningIcon" style="display:none; font-size:28px; color:#d48806;" aria-hidden="true">⚠</div>
+
         <div id="placeholderText">No image yet</div>
       </div>
       <img id="prefImage" src="" alt="Signpost sticker" />
@@ -65,7 +70,6 @@ L.tileLayer(
   }
 ).addTo(map);
 
-
 function prefectureStyle(feature) { return { color: '#333', weight: 1, fillColor: '#88aaff', fillOpacity: 0.6 }; }
 function highlightStyle() { return { weight: 2, color: '#000', fillOpacity: 0.8 }; }
 
@@ -98,45 +102,34 @@ function probeImage(url) {
     const img = new Image();
     img.onload = () => resolve(true);
     img.onerror = () => resolve(false);
-    // small cache-bust for probe to avoid stale 404 caches
     img.src = url + '?_probe=' + Date.now();
   });
 }
 
-// Build a candidate list and probe in parallel, return ordered unique URLs up to maxImages
+// Build candidate list and probe in parallel
 async function loadImagesForKey(key, maxImages = 12) {
   if (!key) return [];
   const exts = ['png','jpg','jpeg','webp'];
   const candidates = [];
-
-  // numbered files (images/<key>/1.ext ... )
   for (let i = 1; i <= maxImages; i++) {
     for (const ext of exts) {
       candidates.push({ url: `images/${key}/${i}.${ext}`, order: i * 10 + exts.indexOf(ext) });
     }
   }
-  // fallback root images (images/<key>.ext)
   for (const ext of exts) {
     candidates.push({ url: `images/${key}.${ext}`, order: 9999 + exts.indexOf(ext) });
   }
 
-  // Probe all candidates in parallel (Promise.allSettled). This is faster than sequential probing.
   const probes = await Promise.allSettled(candidates.map(c => probeImage(c.url)));
-
-  // Collect successful URLs with their order
   const successes = [];
   for (let i = 0; i < probes.length; i++) {
     if (probes[i].status === 'fulfilled' && probes[i].value === true) {
       successes.push({ url: candidates[i].url, order: candidates[i].order, idx: i });
     }
   }
-
   if (successes.length === 0) return [];
-
-  // Sort by order to keep numeric ordering (1..12) first, then root fallback
   successes.sort((a, b) => a.order - b.order || a.idx - b.idx);
 
-  // Remove duplicates (if any) and return up to maxImages
   const out = [];
   const seen = new Set();
   for (const s of successes) {
@@ -150,24 +143,20 @@ async function loadImagesForKey(key, maxImages = 12) {
 }
 
 // -------------------------------
-// Preview strip update (deterministic slot layout)
-// NOTE: THUMB_WIDTH and GAP must match values in your CSS
+// Preview strip update
 // -------------------------------
 function updatePreviewStrip() {
   const preview = document.getElementById('imagePreview');
   const wrapper = document.getElementById('imagePreviewWrapper');
-
   preview.innerHTML = '';
   if (!currentGallery.urls || currentGallery.urls.length === 0) {
     preview.style.transform = 'translateX(0)';
     return;
   }
-
-  const THUMB_WIDTH = 48;   // must match CSS width for thumbnails
-  const GAP = 6;            // spacing between thumbs (matches CSS)
+  const THUMB_WIDTH = 48;
+  const GAP = 6;
   const SLOT = THUMB_WIDTH + GAP;
 
-  // Build thumbnails (lazy) and make them clickable
   currentGallery.urls.forEach((url, i) => {
     const img = document.createElement('img');
     img.src = url;
@@ -183,7 +172,6 @@ function updatePreviewStrip() {
     preview.appendChild(img);
   });
 
-  // Compute transform so that thumbnail at index `currentGallery.idx` is centered.
   const wrapperWidth = wrapper.clientWidth;
   const centerX = Math.round(wrapperWidth / 2 - THUMB_WIDTH / 2);
   const offset = centerX - currentGallery.idx * SLOT;
@@ -199,21 +187,28 @@ function showGalleryState() {
   const imgEl = document.getElementById('prefImage');
   const placeholder = document.getElementById('imagePlaceholder');
   const placeholderText = document.getElementById('placeholderText');
+  const spinner = document.getElementById('spinner');
+  const warning = document.getElementById('warningIcon');
   const info = document.getElementById('galleryInfo');
   const wrapper = document.getElementById('imageWrapper');
-  const padding = 20; // total padding in px
+  const padding = 20;
 
+  // if no urls -> show placeholder (but do not change region name)
   if(!currentGallery.urls.length){
     imgEl.style.display='none';
+    spinner.style.display = 'none';
+    warning.style.display = 'block'; // show warning by default for empty gallery
     placeholder.style.display='flex';
-    placeholderText.textContent = 'No images found. Add images to images/<prefkey>/ or images/<prefkey>.png';
+    placeholderText.textContent = 'No meta available';
     document.getElementById('imagePreview').innerHTML = '';
     document.getElementById('imagePreview').style.transform = 'translateX(0)';
     info.textContent = '';
     return;
   }
 
-  // Show placeholder with "Loading..." while this single image loads
+  // images exist -> show loading spinner for the single image
+  spinner.style.display = 'block';
+  warning.style.display = 'none';
   placeholder.style.display='flex';
   placeholderText.textContent = 'Loading image...';
   imgEl.style.display='none';
@@ -221,35 +216,31 @@ function showGalleryState() {
 
   const url = currentGallery.urls[currentGallery.idx];
 
-  // Load only this image immediately (preload via temp Image)
   const temp = new Image();
   temp.decoding = 'async';
   temp.onload = () => {
-    // compute ratio and set size
     const wrapperWidth = wrapper.clientWidth - padding;
     const wrapperHeight = wrapper.clientHeight - padding;
     const ratio = Math.min(wrapperWidth / temp.naturalWidth, wrapperHeight / temp.naturalHeight);
     imgEl.width = Math.round(temp.naturalWidth * ratio);
     imgEl.height = Math.round(temp.naturalHeight * ratio);
 
-    // set main src and fade in
     imgEl.src = url;
     imgEl.style.transition = 'opacity 0.35s ease-in-out';
 
-    // hide placeholder and show image
     placeholder.style.display = 'none';
     imgEl.style.display = 'block';
     requestAnimationFrame(() => { imgEl.style.opacity = 1; });
 
-    // update preview highlight after show
     updatePreviewStrip();
   };
   temp.onerror = () => {
+    spinner.style.display = 'none';
+    warning.style.display = 'block';
     placeholder.style.display = 'flex';
     placeholderText.textContent = 'Failed to load image';
     imgEl.style.display = 'none';
   };
-  // small cache-bust to ensure fresh load for this immediate display
   temp.src = url + '?_v=' + Date.now();
 
   info.textContent = `${currentGallery.idx+1} / ${currentGallery.urls.length}`;
@@ -257,27 +248,19 @@ function showGalleryState() {
 
 // -------------------------------
 // Background preloader
-// Preloads remaining images with low priority (idle or setTimeout)
 // -------------------------------
 function backgroundPreload(urls, skipIndex=0) {
   const toPreload = urls.filter((u, i) => i !== skipIndex);
   if (toPreload.length === 0) return;
-
   const doPreload = () => {
     toPreload.forEach(u => {
       const img = new Image();
       img.decoding = 'async';
-      // allow browser to prioritize cached loads; do not add cache-bust here
       img.src = u;
     });
   };
-
-  if ('requestIdleCallback' in window) {
-    requestIdleCallback(doPreload, { timeout: 2000 });
-  } else {
-    // degrade gracefully
-    setTimeout(doPreload, 500);
-  }
+  if ('requestIdleCallback' in window) requestIdleCallback(doPreload, { timeout: 2000 });
+  else setTimeout(doPreload, 500);
 }
 
 // -------------------------------
@@ -298,65 +281,80 @@ document.getElementById('nextImage').onclick = ()=>{
 // Prefecture interaction
 // -------------------------------
 function onEachPrefecture(feature, layer) {
+  // Use closures to read layer.hasImages
   layer.on({
-    mouseover: (e) => e.target.setStyle(highlightStyle()),
-    mouseout: (e) => prefectureLayer.resetStyle(e.target),
+    mouseover: (e) => {
+      // do not highlight greyed layers
+      if (layer.hasImages === false) return;
+      e.target.setStyle(highlightStyle());
+    },
+    mouseout: (e) => {
+      // do not reset greyed layers
+      if (layer.hasImages === false) return;
+      prefectureLayer.resetStyle(e.target);
+    },
 
     click: async () => {
-    const nameEn = feature.properties['name:en'] ?? 'Unknown';
-    const nameJa = feature.properties['name:ja'] ?? '';
-    const key = sanitizeKey(nameEn);
+      const nameEn = feature.properties['name:en'] ?? 'Unknown';
+      const nameJa = feature.properties['name:ja'] ?? '';
 
-    // OPEN SIDEBAR IMMEDIATELY
-    openSidebar();
+      // set region name (unchanged even when no meta)
+      document.getElementById('prefNameEn').innerText = nameEn;
+      document.getElementById('prefNameJa').innerText = nameJa;
 
-    // Reset gallery + show placeholder
-    currentGallery = { urls: [], idx: 0 };
-    const preview = document.getElementById('imagePreview');
-    preview.innerHTML = '';
-    preview.style.transform = 'translateX(0)';
-    const placeholder = document.getElementById('imagePlaceholder');
-    const placeholderText = document.getElementById('placeholderText');
-    placeholder.style.display = 'flex';
-    placeholderText.textContent = 'Searching images...';
-    document.getElementById('prefImage').style.display = 'none';
-    document.getElementById('galleryInfo').textContent = '';
+      const key = sanitizeKey(nameEn);
 
-    // Load images
-    const urls = await loadImagesForKey(key, 12);
-    currentGallery.urls = urls;
+      // OPEN SIDEBAR IMMEDIATELY
+      openSidebar();
 
-    // NO IMAGES CASE
-    if (urls.length === 0) {
-        // Gray out region
-        layer.setStyle({ fillColor: '#cccccc', fillOpacity: 0.6 });
+      // Reset gallery + show placeholder state
+      currentGallery = { urls: [], idx: 0 };
+      const preview = document.getElementById('imagePreview');
+      preview.innerHTML = '';
+      preview.style.transform = 'translateX(0)';
+      const placeholder = document.getElementById('imagePlaceholder');
+      const placeholderText = document.getElementById('placeholderText');
+      const spinner = document.getElementById('spinner');
+      const warning = document.getElementById('warningIcon');
 
-        // Update sidebar
-        document.getElementById('prefNameEn').innerText = 'No meta available';
-        document.getElementById('prefNameJa').innerText = '';
-        placeholderText.textContent = 'No images available';
+      // show spinner while probing
+      spinner.style.display = 'block';
+      warning.style.display = 'none';
+      placeholder.style.display = 'flex';
+      placeholderText.textContent = 'Searching images...';
+      document.getElementById('prefImage').style.display = 'none';
+      document.getElementById('galleryInfo').textContent = '';
+
+      // Load images
+      const urls = await loadImagesForKey(key, 12);
+      currentGallery.urls = urls;
+
+      // NO IMAGES CASE: keep region name, swap spinner->warning + grey permanently
+      if (urls.length === 0) {
+        layer.hasImages = false; // mark for handlers
+        layer.setStyle({ fillColor: '#cccccc', fillOpacity: 0.8, color: '#666' });
+
+        // show warning in placeholder area (do NOT change region name)
+        spinner.style.display = 'none';
+        warning.style.display = 'block';
+        placeholderText.textContent = 'No meta available';
         document.getElementById('imagePreview').innerHTML = '';
         document.getElementById('galleryInfo').textContent = '';
-        return; // stop further processing
+        return;
+      }
+
+      // IMAGES EXIST: restore normal color & behavior
+      layer.hasImages = true;
+      layer.setStyle(prefectureStyle(feature));
+
+      // Show first image and previews
+      currentGallery.idx = 0;
+      showGalleryState();
+      updatePreviewStrip();
+      backgroundPreload(urls, 0);
     }
-
-    // IMAGES EXIST: restore normal color
-    layer.setStyle(prefectureStyle(feature));
-
-    // Show first image
-    currentGallery.idx = 0;
-    showGalleryState();
-
-    // Build preview strip (thumbnails lazy-load)
-    updatePreviewStrip();
-
-    // Preload remaining images in background
-    backgroundPreload(urls, 0);
-}
-
   });
 }
-
 
 // -------------------------------
 // Load GeoJSON
