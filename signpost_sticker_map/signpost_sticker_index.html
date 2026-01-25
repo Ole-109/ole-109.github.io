@@ -257,26 +257,32 @@ document.getElementById('nextImage').onclick = ()=>{
 // Prefecture interaction
 // -------------------------------
 function onEachPrefecture(feature, layer) {
-  layer.on({
-    mouseover: (e) => { if (layer.hasImages !== false) e.target.setStyle(highlightStyle()); },
-    mouseout: (e) => { if (layer.hasImages !== false) prefectureLayer.resetStyle(e.target); },
-    click: async () => {
-      const nameEn = feature.properties['name:en'] ?? 'Unknown';
-      const nameJa = feature.properties['name:ja'] ?? '';
-      const key = sanitizeKey(nameEn);
+  const nameEn = feature.properties['name:en'] ?? 'Unknown';
+  const nameJa = feature.properties['name:ja'] ?? '';
+  const key = sanitizeKey(nameEn);
 
+  // default: unknown until checked
+  layer.hasImages = null;
+
+  layer.on({
+    mouseover: (e) => {
+      if (layer.hasImages === false) return;
+      e.target.setStyle(highlightStyle());
+    },
+    mouseout: (e) => {
+      if (layer.hasImages === false) return;
+      prefectureLayer.resetStyle(e.target);
+    },
+    click: async () => {
       document.getElementById('prefNameEn').innerText = nameEn;
       document.getElementById('prefNameJa').innerText = nameJa;
 
       openSidebar();
 
       currentGallery = { urls: [], idx: 0 };
-      const preview = document.getElementById('imagePreview');
-      preview.innerHTML = '';
-      preview.style.transform = 'translateX(0)';
-      const placeholder = document.getElementById('imagePlaceholder');
+      document.getElementById('imagePreview').innerHTML = '';
+      document.getElementById('imagePreview').style.transform = 'translateX(0)';
       const placeholderText = document.getElementById('placeholderText');
-      placeholder.style.display = 'flex';
       placeholderText.textContent = 'Searching images...';
       document.getElementById('prefImage').style.display = 'none';
       document.getElementById('galleryInfo').textContent = '';
@@ -288,8 +294,6 @@ function onEachPrefecture(feature, layer) {
         layer.hasImages = false;
         layer.setStyle({ fillColor:'#cccccc', fillOpacity:0.8, color:'#666' });
         placeholderText.textContent = 'No meta available';
-        document.getElementById('imagePreview').innerHTML = '';
-        document.getElementById('galleryInfo').textContent = '';
         return;
       }
 
@@ -304,21 +308,47 @@ function onEachPrefecture(feature, layer) {
 }
 
 // -------------------------------
-// Load GeoJSON
+// Load GeoJSON + INITIAL META CHECK
 // -------------------------------
 let prefectureLayer;
+
 fetch('prefectures_land_only_clean.geojson')
   .then(res => res.json())
-  .then(data => {
+  .then(async data => {
+
     prefectureLayer = L.geoJSON(data, {
       style: prefectureStyle,
       onEachFeature: onEachPrefecture,
       interactive: true,
       fill: true
     }).addTo(map);
+
     map.fitBounds(prefectureLayer.getBounds());
+
+    // ---- INITIAL META SCAN (parallel, fast) ----
+    const checks = [];
+
+    prefectureLayer.eachLayer(layer => {
+      const nameEn = layer.feature.properties['name:en'] ?? '';
+      const key = sanitizeKey(nameEn);
+
+      const check = loadImagesForKey(key, 1).then(urls => {
+        if (!urls.length) {
+          layer.hasImages = false;
+          layer.setStyle({
+            fillColor: '#cccccc',
+            fillOpacity: 0.8,
+            color: '#666'
+          });
+        } else {
+          layer.hasImages = true;
+        }
+      });
+
+      checks.push(check);
+    });
+
+    await Promise.all(checks);
   })
   .catch(err => console.error('GeoJSON load error:', err));
 </script>
-</body>
-</html>
